@@ -1,2 +1,3 @@
-# iggy-cluster-sandbox
-Sandbox for the future implementation of Iggy.rs clustering feature.
+# Iggy Cluster Sandbox
+
+Sandbox for the future implementation of [Iggy.rs](https://iggy.rs) clustering feature.
