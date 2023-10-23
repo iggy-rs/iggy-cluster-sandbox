@@ -1,19 +1,22 @@
-use crate::error::Error;
+use crate::configs::config_provider::FileConfigProvider;
+use crate::error::SystemError;
 use crate::server::tcp_server;
 use figlet_rs::FIGfont;
 use tracing::info;
 
+mod configs;
 mod error;
 mod server;
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> Result<(), SystemError> {
     tracing_subscriber::fmt::init();
     let standard_font = FIGfont::standard().unwrap();
     let figure = standard_font.convert("Iggy Node");
+    let config_provider = FileConfigProvider::default();
     println!("{}", figure.unwrap());
-    let address = "0.0.0.0:8070";
-    tcp_server::start(address);
+    let system_config = config_provider.load_config().await?;
+    tcp_server::start(&system_config.node.address);
 
     #[cfg(unix)]
     let (mut ctrl_c, mut sigterm) = {

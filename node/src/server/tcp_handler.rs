@@ -1,11 +1,11 @@
-use crate::error::Error;
+use crate::error::SystemError;
 use crate::server::tcp_sender::TcpSender;
 use std::io::ErrorKind;
 use tracing::{debug, error, info};
 
 const INITIAL_BYTES_LENGTH: usize = 4;
 
-pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), Error> {
+pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), SystemError> {
     let mut initial_buffer = [0u8; INITIAL_BYTES_LENGTH];
     loop {
         let read_length = sender.read(&mut initial_buffer).await?;
@@ -27,9 +27,9 @@ pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), Erro
     }
 }
 
-pub(crate) fn handle_error(error: Error) {
+pub(crate) fn handle_error(error: SystemError) {
     match error {
-        Error::IoError(error) => match error.kind() {
+        SystemError::IoError(error) => match error.kind() {
             ErrorKind::UnexpectedEof => {
                 info!("Connection has been closed.");
             }
@@ -46,5 +46,8 @@ pub(crate) fn handle_error(error: Error) {
                 error!("Connection has failed: {error}");
             }
         },
+        _ => {
+            error!("Connection has failed: {error}");
+        }
     }
 }
