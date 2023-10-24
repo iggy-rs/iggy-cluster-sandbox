@@ -16,6 +16,7 @@ async fn main() -> Result<(), SystemError> {
     let config_provider = FileConfigProvider::default();
     println!("{}", figure.unwrap());
     let system_config = config_provider.load_config().await?;
+    println!("{system_config}");
     tcp_server::start(&system_config.node.address);
 
     #[cfg(unix)]
