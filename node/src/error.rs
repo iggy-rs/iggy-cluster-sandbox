@@ -9,4 +9,8 @@ pub enum SystemError {
     ConfigNotFound(String),
     #[error("Configuration not is invalid: {0}.")]
     ConfigInvalid(String),
+    #[error("Cannot connect to cluster node: {0}.")]
+    CannotConnectToClusterNode(String),
+    #[error("Invalid cluster node address: {0}.")]
+    InvalidClusterNodeAddress(String),
 }

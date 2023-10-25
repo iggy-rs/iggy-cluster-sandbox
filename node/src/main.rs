@@ -1,9 +1,11 @@
+use crate::client::cluster_node_client::ClusterNodeClient;
 use crate::configs::config_provider::FileConfigProvider;
 use crate::error::SystemError;
 use crate::server::tcp_server;
 use figlet_rs::FIGfont;
 use tracing::info;
 
+mod client;
 mod configs;
 mod error;
 mod server;
@@ -18,6 +20,13 @@ async fn main() -> Result<(), SystemError> {
     let system_config = config_provider.load_config().await?;
     println!("{system_config}");
     tcp_server::start(&system_config.node.address);
+    let mut cluster_node_clients = Vec::new();
+
+    for cluster_member in system_config.cluster.members {
+        let cluster_node_client = ClusterNodeClient::new_with_defaults(&cluster_member.address)?;
+        cluster_node_client.connect().await?;
+        cluster_node_clients.push(cluster_node_client);
+    }
 
     #[cfg(unix)]
     let (mut ctrl_c, mut sigterm) = {
@@ -49,6 +58,10 @@ async fn main() -> Result<(), SystemError> {
         Err(err) => {
             eprintln!("Unable to listen for shutdown signal: {}", err);
         }
+    }
+
+    for cluster_node_client in cluster_node_clients {
+        cluster_node_client.disconnect().await?;
     }
 
     info!("Iggy node has shutdown successfully.");

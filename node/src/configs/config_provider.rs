@@ -231,7 +231,7 @@ impl FileConfigProvider {
             }
         };
 
-        let custom_env_provider = CustomEnvProvider::new("IGGY_");
+        let custom_env_provider = CustomEnvProvider::new("IGGY_NODE_");
         let config_result: Result<SystemConfig, figment::Error> =
             config_builder.merge(custom_env_provider).extract();
 
