@@ -11,7 +11,6 @@ pub enum ClientState {
     Disconnected,
     Connected,
 }
-
 #[derive(Debug)]
 pub struct ClusterNodeClient {
     pub(crate) node_address: SocketAddr,

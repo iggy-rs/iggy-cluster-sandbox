@@ -9,17 +9,18 @@ pub struct SystemConfig {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct NodeConfig {
+    pub name: String,
     pub address: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ClusterConfig {
     pub max_timeout: u32,
-    pub members: Vec<ClusterMemberConfig>,
+    pub nodes: Vec<ClusterNodeConfig>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ClusterMemberConfig {
+pub struct ClusterNodeConfig {
     pub name: String,
     pub address: String,
 }
@@ -27,6 +28,7 @@ pub struct ClusterMemberConfig {
 impl Default for NodeConfig {
     fn default() -> Self {
         Self {
+            name: "node".to_string(),
             address: "0.0.0.0:8100".to_string(),
         }
     }
@@ -36,14 +38,14 @@ impl Default for ClusterConfig {
     fn default() -> Self {
         Self {
             max_timeout: 1000,
-            members: vec![],
+            nodes: vec![],
         }
     }
 }
 
 impl Display for NodeConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{ address: {} }}", self.address)
+        write!(f, "{{ name: {}, address: {} }}", self.name, self.address)
     }
 }
 
@@ -53,7 +55,7 @@ impl Display for ClusterConfig {
             f,
             "{{ max_timeout: {}, members: {} }}",
             self.max_timeout,
-            self.members
+            self.nodes
                 .iter()
                 .map(|m| m.to_string())
                 .collect::<Vec<String>>()
@@ -62,7 +64,7 @@ impl Display for ClusterConfig {
     }
 }
 
-impl Display for ClusterMemberConfig {
+impl Display for ClusterNodeConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{{ name: {}, address: {} }}", self.name, self.address)
     }

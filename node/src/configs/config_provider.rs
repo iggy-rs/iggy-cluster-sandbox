@@ -9,7 +9,7 @@ use std::{env, path::Path};
 use toml::{map::Map, Value as TomlValue};
 use tracing::info;
 
-const DEFAULT_CONFIG_PATH: &str = "configs/config.toml";
+const DEFAULT_CONFIG_PATH: &str = "configs/node1.toml";
 
 #[derive(Debug)]
 pub struct FileConfigProvider {

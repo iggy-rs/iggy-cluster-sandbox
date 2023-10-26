@@ -1,13 +1,14 @@
 [node]
+name = "node1"
 address = "0.0.0.0:8100"
 
 [cluster]
 max_timeout = 1000
 
-[[cluster.members]]
+[[cluster.nodes]]
 name = "node2"
 address = "0.0.0.0:8110"
 
-[[cluster.members]]
+[[cluster.nodes]]
 name = "node3"
 address = "0.0.0.0:8120"
