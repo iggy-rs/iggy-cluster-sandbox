@@ -1,5 +1,6 @@
 use crate::clusters::cluster_node_client::ClusterNodeClient;
 use crate::error::SystemError;
+use tracing::info;
 
 #[derive(Debug)]
 pub struct Node {
@@ -26,6 +27,16 @@ impl Node {
         }
 
         self.client.connect().await
+    }
+
+    pub async fn start_healthcheck(&self) -> Result<(), SystemError> {
+        if self.is_self {
+            return Ok(());
+        }
+
+        info!("Starting healthcheck for cluster node: {}...", self.name);
+        self.client.start_healthcheck().await;
+        Ok(())
     }
 
     pub async fn disconnect(&self) -> Result<(), SystemError> {

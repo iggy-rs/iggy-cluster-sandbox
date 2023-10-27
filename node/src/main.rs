@@ -6,6 +6,7 @@ use figlet_rs::FIGfont;
 use tracing::info;
 
 mod clusters;
+mod command;
 mod configs;
 mod error;
 mod server;
@@ -26,6 +27,7 @@ async fn main() -> Result<(), SystemError> {
         cluster.add_node(&node.name, &node.address)?;
     }
     cluster.connect().await?;
+    cluster.start_healthcheck().await?;
 
     #[cfg(unix)]
     let (mut ctrl_c, mut sigterm) = {

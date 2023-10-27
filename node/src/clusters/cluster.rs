@@ -1,21 +1,23 @@
 use crate::clusters::node::Node;
 use crate::error::SystemError;
-use tracing::info;
+use std::sync::Arc;
+use tokio::task;
+use tracing::{error, info};
 
 #[derive(Debug)]
 pub struct Cluster {
-    pub nodes: Vec<Node>,
+    pub nodes: Vec<Arc<Node>>,
 }
 
 impl Cluster {
     pub fn new(self_name: &str, self_address: &str) -> Result<Self, SystemError> {
-        let nodes = vec![Node::new(self_name, self_address, true)?];
+        let nodes = vec![Arc::new(Node::new(self_name, self_address, true)?)];
         Ok(Self { nodes })
     }
 
     pub fn add_node(&mut self, name: &str, address: &str) -> Result<(), SystemError> {
         let node = Node::new(name, address, false)?;
-        self.nodes.push(node);
+        self.nodes.push(Arc::new(node));
         Ok(())
     }
 
@@ -25,6 +27,23 @@ impl Cluster {
             node.connect().await?;
         }
         info!("All cluster nodes connected.");
+        Ok(())
+    }
+
+    pub async fn start_healthcheck(&self) -> Result<(), SystemError> {
+        info!("Starting healthcheck for all cluster nodes...");
+        for node in &self.nodes {
+            let node = node.clone();
+            task::spawn(async move {
+                if node.start_healthcheck().await.is_err() {
+                    error!(
+                        "Failed to start healthcheck for cluster node: {}",
+                        node.name
+                    );
+                }
+            });
+        }
+        info!("Healthcheck for all cluster nodes started.");
         Ok(())
     }
 

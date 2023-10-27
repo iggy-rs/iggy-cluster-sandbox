@@ -1,3 +1,4 @@
+use std::array::TryFromSliceError;
 use std::io;
 use thiserror::Error;
 
@@ -5,6 +6,8 @@ use thiserror::Error;
 pub enum SystemError {
     #[error("IO error")]
     IoError(#[from] io::Error),
+    #[error("Try from slice error")]
+    TryFromSliceError(#[from] TryFromSliceError),
     #[error("Configuration not found: {0}.")]
     ConfigNotFound(String),
     #[error("Configuration not is invalid: {0}.")]
@@ -13,4 +16,6 @@ pub enum SystemError {
     CannotConnectToClusterNode(String),
     #[error("Invalid cluster node address: {0}.")]
     InvalidClusterNodeAddress(String),
+    #[error("Invalid command code: {0}.")]
+    InvalidCommandCode(u32),
 }
