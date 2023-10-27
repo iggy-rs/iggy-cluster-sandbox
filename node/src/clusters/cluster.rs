@@ -1,7 +1,6 @@
 use crate::clusters::node::Node;
 use crate::error::SystemError;
 use std::sync::Arc;
-use tokio::task;
 use tracing::{error, info};
 
 #[derive(Debug)]
@@ -30,11 +29,13 @@ impl Cluster {
         Ok(())
     }
 
-    pub async fn start_healthcheck(&self) -> Result<(), SystemError> {
-        info!("Starting healthcheck for all cluster nodes...");
+    pub fn start_healthcheck(&self) -> Result<(), SystemError> {
+        info!("Starting healthcheck for all cluster nodes {}...", self.nodes.len());
         for node in &self.nodes {
+            info!("About to start healthcheck for cluster node: {}", node.name);
             let node = node.clone();
-            task::spawn(async move {
+            monoio::spawn(async move {
+                info!("Starting healthcheck for cluster node (out): {}", node.name);
                 if node.start_healthcheck().await.is_err() {
                     error!(
                         "Failed to start healthcheck for cluster node: {}",

@@ -7,9 +7,11 @@ use tracing::{debug, error, info};
 const INITIAL_BYTES_LENGTH: usize = 8;
 
 pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), SystemError> {
-    let mut initial_buffer = [0u8; INITIAL_BYTES_LENGTH];
+    let mut initial_buffer = Vec::with_capacity(INITIAL_BYTES_LENGTH);
+    let mut read_length = 0;
+    initial_buffer.fill_with(|| 0u8);
     loop {
-        let read_length = sender.read(&mut initial_buffer).await?;
+        (read_length, initial_buffer) = sender.read(initial_buffer).await?;
         if read_length != INITIAL_BYTES_LENGTH {
             error!(
                 "Unable to read the TCP request length, expected: {} bytes, received: {} bytes.",
@@ -23,8 +25,8 @@ pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), Syst
         let length = u32::from_le_bytes(initial_buffer[4..8].try_into()?);
         debug!("Received a TCP request, command: {command}, length: {length}");
         if length > 0 {
-            let mut buffer = vec![0u8; length as usize];
-            sender.read(&mut buffer).await?;
+            let buffer = vec![0u8; length as usize];
+            sender.read(buffer).await?;
         }
 
         match command {

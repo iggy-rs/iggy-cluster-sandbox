@@ -1,3 +1,4 @@
+use std::io::stdin;
 use crate::clusters::cluster::Cluster;
 use crate::configs::config_provider::FileConfigProvider;
 use crate::error::SystemError;
@@ -11,7 +12,7 @@ mod configs;
 mod error;
 mod server;
 
-#[tokio::main]
+#[monoio::main(timer_enabled = true)]
 async fn main() -> Result<(), SystemError> {
     tracing_subscriber::fmt::init();
     let standard_font = FIGfont::standard().unwrap();
@@ -27,40 +28,43 @@ async fn main() -> Result<(), SystemError> {
         cluster.add_node(&node.name, &node.address)?;
     }
     cluster.connect().await?;
-    cluster.start_healthcheck().await?;
+    cluster.start_healthcheck()?;
 
-    #[cfg(unix)]
-    let (mut ctrl_c, mut sigterm) = {
-        use tokio::signal::unix::{signal, SignalKind};
-        (
-            signal(SignalKind::interrupt())?,
-            signal(SignalKind::terminate())?,
-        )
-    };
+    // #[cfg(unix)]
+    // let (mut ctrl_c, mut sigterm) = {
+    //     use monoio::signal::unix::{signal, SignalKind};
+    //     (
+    //         signal(SignalKind::interrupt())?,
+    //         signal(SignalKind::terminate())?,
+    //     )
+    // };
+    //
+    // #[cfg(windows)]
+    // let mut ctrl_c = tokio::signal::ctrl_c();
+    //
+    // #[cfg(unix)]
+    // tokio::select! {
+    //     _ = ctrl_c.recv() => {
+    //         info!("Received SIGINT. Shutting down Iggy node...");
+    //     },
+    //     _ = sigterm.recv() => {
+    //         info!("Received SIGTERM. Shutting down Iggy node...");
+    //     }
+    // }
+    //
+    // #[cfg(windows)]
+    // match tokio::signal::ctrl_c().await {
+    //     Ok(()) => {
+    //         info!("Received CTRL-C. Shutting down Iggy node...");
+    //     }
+    //     Err(err) => {
+    //         eprintln!("Unable to listen for shutdown signal: {}", err);
+    //     }
+    // }
 
-    #[cfg(windows)]
-    let mut ctrl_c = tokio::signal::ctrl_c();
 
-    #[cfg(unix)]
-    tokio::select! {
-        _ = ctrl_c.recv() => {
-            info!("Received SIGINT. Shutting down Iggy node...");
-        },
-        _ = sigterm.recv() => {
-            info!("Received SIGTERM. Shutting down Iggy node...");
-        }
-    }
-
-    #[cfg(windows)]
-    match tokio::signal::ctrl_c().await {
-        Ok(()) => {
-            info!("Received CTRL-C. Shutting down Iggy node...");
-        }
-        Err(err) => {
-            eprintln!("Unable to listen for shutdown signal: {}", err);
-        }
-    }
-
+    info!("Press any key to shutdown Iggy node...");
+    stdin().read_line(&mut String::new())?;
     cluster.disconnect().await?;
 
     info!("Iggy node has shutdown successfully.");

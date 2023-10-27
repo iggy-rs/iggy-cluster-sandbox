@@ -17,10 +17,10 @@ serde = { version = "1.0.159", features = ["derive", "rc"] }
 sled = "0.34.7"
 thiserror = "1.0.40"
 toml = "0.8.0"
-tokio = { version = "1.28.2", features = ["full"] }
 tracing = { version = "0.1.37" }
 tracing-subscriber = { version = "0.3.17", features = ["fmt"] }
 tracing-appender = "0.2.2"
+monoio = "0.1.9"
 
 [[bin]]
 name = "node"

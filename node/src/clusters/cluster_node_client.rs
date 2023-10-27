@@ -3,10 +3,10 @@ use crate::error::SystemError;
 use bytes::BufMut;
 use std::net::SocketAddr;
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
-use tokio::sync::Mutex;
-use tokio::time::sleep;
+use futures::lock::Mutex;
+use monoio::io::{AsyncReadRent, AsyncWriteRentExt};
+use monoio::net::TcpStream;
+use monoio::time::sleep;
 use tracing::{error, info, warn};
 
 const RESPONSE_INITIAL_BYTES_LENGTH: usize = 8;
@@ -105,6 +105,8 @@ impl ClusterNodeClient {
 
     pub async fn start_healthcheck(&self) {
         let interval = Duration::from_secs(3);
+        let mut buffer: Vec<u8> = Vec::with_capacity(8 * 1024);
+        let mut read_bytes;
         loop {
             sleep(interval).await;
             let state = self.get_state().await;
@@ -127,14 +129,14 @@ impl ClusterNodeClient {
             payload.put_u32_le(command.as_code());
             payload.put_u32_le(command_bytes.len() as u32);
             payload.extend_from_slice(&command_bytes);
-            let write_result = stream.write_all(&payload).await;
+            let (write_result, _) = stream.write_all(payload).await;
             if write_result.is_err() {
                 error!("Failed to send a ping: {:?}", write_result.err());
                 continue;
             }
 
-            let mut response_buffer = [0u8; RESPONSE_INITIAL_BYTES_LENGTH];
-            let read_bytes = stream.read(&mut response_buffer).await;
+            // let mut buffer = [0u8; RESPONSE_INITIAL_BYTES_LENGTH];
+            (read_bytes, buffer) = stream.read(buffer).await;
             if read_bytes.is_err() {
                 error!("Failed to read a ping response: {:?}", read_bytes.err());
                 continue;
@@ -146,13 +148,13 @@ impl ClusterNodeClient {
                 continue;
             }
 
-            let status = u32::from_le_bytes(response_buffer[..4].try_into().unwrap());
+            let status = u32::from_le_bytes(buffer[..4].try_into().unwrap());
             if status != 0 {
                 error!("Received an invalid ping response with status: {status}.");
                 continue;
             }
 
-            let length = u32::from_le_bytes(response_buffer[4..8].try_into().unwrap());
+            let length = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
             info!("Received a valid ping response with length: {length}.");
         }
     }
