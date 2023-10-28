@@ -8,7 +8,7 @@ const INITIAL_BYTES_LENGTH: usize = 8;
 
 pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), SystemError> {
     let mut initial_buffer = Vec::with_capacity(INITIAL_BYTES_LENGTH);
-    let mut read_length = 0;
+    let mut read_length;
     initial_buffer.fill_with(|| 0u8);
     loop {
         (read_length, initial_buffer) = sender.read(initial_buffer).await?;
@@ -17,7 +17,7 @@ pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), Syst
                 "Unable to read the TCP request length, expected: {} bytes, received: {} bytes.",
                 INITIAL_BYTES_LENGTH, read_length
             );
-            continue;
+            return Err(SystemError::InvalidRequest);
         }
 
         let command_code = u32::from_le_bytes(initial_buffer[..4].try_into()?);

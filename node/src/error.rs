@@ -18,4 +18,6 @@ pub enum SystemError {
     InvalidClusterNodeAddress(String),
     #[error("Invalid command code: {0}.")]
     InvalidCommandCode(u32),
+    #[error("Invalid request")]
+    InvalidRequest,
 }

@@ -1,13 +1,13 @@
+use crate::error::SystemError;
 use monoio::io::{AsyncReadRent, AsyncWriteRentExt};
 use monoio::net::TcpStream;
-use crate::error::SystemError;
 use tracing::debug;
 
 const STATUS_OK: &[u8] = &[0; 4];
 
 #[derive(Debug)]
 pub struct TcpSender {
-    pub(crate) stream: TcpStream
+    pub(crate) stream: TcpStream,
 }
 
 unsafe impl Send for TcpSender {}
@@ -42,9 +42,7 @@ impl TcpSender {
         buffer.extend(status);
         buffer.extend(&length);
         buffer.extend(payload);
-        let result = self.stream
-            .write_all(buffer)
-            .await;
+        let result = self.stream.write_all(buffer).await;
         if result.0.is_err() {
             return Err(SystemError::from(result.0.unwrap_err()));
         }

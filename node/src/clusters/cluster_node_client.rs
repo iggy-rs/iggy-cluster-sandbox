@@ -1,12 +1,12 @@
 use crate::command::Command;
 use crate::error::SystemError;
 use bytes::BufMut;
-use std::net::SocketAddr;
-use std::time::Duration;
 use futures::lock::Mutex;
 use monoio::io::{AsyncReadRent, AsyncWriteRentExt};
 use monoio::net::TcpStream;
 use monoio::time::sleep;
+use std::net::SocketAddr;
+use std::time::Duration;
 use tracing::{error, info, warn};
 
 const RESPONSE_INITIAL_BYTES_LENGTH: usize = 8;
