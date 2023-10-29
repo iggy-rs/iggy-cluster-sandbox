@@ -20,4 +20,8 @@ pub enum SystemError {
     InvalidCommandCode(u32),
     #[error("Invalid request")]
     InvalidRequest,
+    #[error("Invalid response")]
+    InvalidResponse,
+    #[error("Client disconnected")]
+    ClientDisconnected,
 }
