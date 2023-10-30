@@ -7,9 +7,8 @@ use tracing::{debug, error, info};
 const INITIAL_BYTES_LENGTH: usize = 8;
 
 pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), SystemError> {
-    let mut initial_buffer = Vec::with_capacity(INITIAL_BYTES_LENGTH);
+    let mut initial_buffer = vec![0u8; INITIAL_BYTES_LENGTH];
     let mut read_length;
-    initial_buffer.fill_with(|| 0u8);
     loop {
         (read_length, initial_buffer) = sender.read(initial_buffer).await?;
         if read_length != INITIAL_BYTES_LENGTH {
@@ -24,19 +23,41 @@ pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), Syst
         let command = Command::from_code(command_code)?;
         let length = u32::from_le_bytes(initial_buffer[4..8].try_into()?);
         debug!("Received a TCP request, command: {command}, length: {length}");
-        if length > 0 {
-            let buffer = vec![0u8; length as usize];
-            sender.read(buffer).await?;
+        if length == 0 {
+            if handle_command(sender, command, None).await.is_err() {
+                error!("Unable to handle the TCP request.");
+            }
+            continue;
         }
 
-        match command {
-            Command::Ping => {
-                info!("Received a TCP ping request.");
-                sender.send_empty_ok_response().await?;
-            }
+        let mut payload_buffer = vec![0u8; length as usize];
+        (_, payload_buffer) = sender.read(payload_buffer).await?;
+        if handle_command(sender, command, Some(&payload_buffer))
+            .await
+            .is_err()
+        {
+            error!("Unable to handle the TCP request.");
         }
-        info!("Sent a TCP response.");
     }
+}
+
+async fn handle_command(
+    sender: &mut TcpSender,
+    command: Command,
+    payload: Option<&[u8]>,
+) -> Result<(), SystemError> {
+    info!(
+        "Handling a TCP request, command: {command}, with payload: {}",
+        payload.is_some()
+    );
+    match command {
+        Command::Ping => {
+            sender.send_empty_ok_response().await?;
+            info!("Sent a ping response.");
+        }
+    }
+    info!("Handled a TCP request, command: {command}.");
+    Ok(())
 }
 
 pub(crate) fn handle_error(error: SystemError) {

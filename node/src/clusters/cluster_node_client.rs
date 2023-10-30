@@ -104,23 +104,30 @@ impl ClusterNodeClient {
     }
 
     pub async fn ping(&self) -> Result<(), SystemError> {
-        let mut buffer: Vec<u8> = Vec::with_capacity(8 * 1024);
-        let read_bytes;
+        info!("Sending a ping to cluster node: {}...", self.node_address);
+        self.send_request(Command::Ping).await?;
+        info!("Received a pong from cluster node: {}.", self.node_address);
+        Ok(())
+    }
+
+    async fn send_request(&self, command: Command) -> Result<(), SystemError> {
         let state = self.get_state().await;
         if state == ClientState::Disconnected {
-            warn!("Cannot send a ping, client is disconnected.");
+            warn!("Cannot send a request, client is disconnected.");
             return Err(SystemError::ClientDisconnected);
         }
 
         let mut stream = self.stream.lock().await;
         if stream.is_none() {
-            warn!("Cannot send a ping, client is disconnected.");
+            warn!("Cannot send a request, client is disconnected.");
             return Err(SystemError::ClientDisconnected);
         }
 
-        info!("Sending a ping to cluster node: {}...", self.node_address);
+        info!(
+            "Sending a request to cluster node: {}...",
+            self.node_address
+        );
         let stream = stream.as_mut().unwrap();
-        let command = Command::Ping;
         let command_bytes = command.as_bytes();
         let mut payload = Vec::with_capacity(8 + command_bytes.len());
         payload.put_u32_le(command.as_code());
@@ -128,31 +135,30 @@ impl ClusterNodeClient {
         payload.extend_from_slice(&command_bytes);
         let (write_result, _) = stream.write_all(payload).await;
         if write_result.is_err() {
-            error!("Failed to send a ping: {:?}", write_result.err());
+            error!("Failed to send a request: {:?}", write_result.err());
             self.set_state(ClientState::Disconnected).await;
             return Err(SystemError::ClientDisconnected);
         }
 
-        (read_bytes, buffer) = stream.read(buffer).await;
+        let buffer = vec![0u8; RESPONSE_INITIAL_BYTES_LENGTH];
+        let (read_bytes, buffer) = stream.read(buffer).await;
         if read_bytes.is_err() {
-            error!("Failed to read a ping response: {:?}", read_bytes.err());
+            error!("Failed to read a response: {:?}", read_bytes.err());
             return Err(SystemError::InvalidResponse);
         }
 
         let read_bytes = read_bytes.unwrap();
         if read_bytes != RESPONSE_INITIAL_BYTES_LENGTH {
-            error!("Received an invalid or empty response.");
+            error!("Received an invalid response.");
             return Err(SystemError::InvalidResponse);
         }
 
         let status = u32::from_le_bytes(buffer[..4].try_into().unwrap());
         if status != 0 {
-            error!("Received an invalid ping response with status: {status}.");
+            error!("Received an invalid response with status: {status}.");
             return Err(SystemError::InvalidResponse);
         }
 
-        let length = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
-        info!("Received a valid ping response with length: {length}.");
         Ok(())
     }
 

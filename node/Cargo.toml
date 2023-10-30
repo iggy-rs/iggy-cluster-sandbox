@@ -23,5 +23,5 @@ tracing-appender = "0.2.2"
 monoio = { version = "0.1.10-beta.1", features = ["signal"] }
 
 [[bin]]
-name = "node"
+name = "iggy-node"
 path = "src/main.rs"
