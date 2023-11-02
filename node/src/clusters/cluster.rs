@@ -1,4 +1,5 @@
 use crate::clusters::node::Node;
+use crate::configs::config::ClusterConfig;
 use crate::error::SystemError;
 use std::rc::Rc;
 use tracing::{error, info};
@@ -9,15 +10,34 @@ pub struct Cluster {
 }
 
 impl Cluster {
-    pub fn new(self_name: &str, self_address: &str) -> Result<Self, SystemError> {
-        let nodes = vec![Rc::new(Node::new(self_name, self_address, true)?)];
+    pub fn new(
+        self_name: &str,
+        self_address: &str,
+        config: &ClusterConfig,
+    ) -> Result<Self, SystemError> {
+        let mut nodes = Vec::new();
+        nodes.push(Self::create_node(self_name, self_address, true, config)?);
+        for node in &config.nodes {
+            nodes.push(Self::create_node(&node.name, &node.address, false, config)?);
+        }
+
         Ok(Self { nodes })
     }
 
-    pub fn add_node(&mut self, name: &str, address: &str) -> Result<(), SystemError> {
-        let node = Node::new(name, address, false)?;
-        self.nodes.push(Rc::new(node));
-        Ok(())
+    fn create_node(
+        node_name: &str,
+        node_address: &str,
+        is_self: bool,
+        config: &ClusterConfig,
+    ) -> Result<Rc<Node>, SystemError> {
+        Ok(Rc::new(Node::new(
+            node_name,
+            node_address,
+            is_self,
+            config.healthcheck_interval,
+            config.reconnection_interval,
+            config.reconnection_retries,
+        )?))
     }
 
     pub async fn connect(&self) -> Result<(), SystemError> {

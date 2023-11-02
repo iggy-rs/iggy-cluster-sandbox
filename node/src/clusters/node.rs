@@ -8,16 +8,32 @@ use tracing::{error, info};
 pub struct Node {
     pub name: String,
     pub address: String,
+    healthcheck: NodeHealthcheck,
     is_self: bool,
     client: ClusterNodeClient,
 }
 
+#[derive(Debug)]
+pub struct NodeHealthcheck {
+    pub interval: Duration,
+}
+
 impl Node {
-    pub fn new(name: &str, address: &str, is_self: bool) -> Result<Self, SystemError> {
-        let client = ClusterNodeClient::new_with_defaults(address)?;
+    pub fn new(
+        name: &str,
+        address: &str,
+        is_self: bool,
+        healthcheck_interval: u64,
+        reconnection_interval: u64,
+        reconnection_retries: u32,
+    ) -> Result<Self, SystemError> {
+        let client = ClusterNodeClient::new(address, reconnection_retries, reconnection_interval)?;
         Ok(Self {
             name: name.to_string(),
             address: address.to_string(),
+            healthcheck: NodeHealthcheck {
+                interval: Duration::from_millis(healthcheck_interval),
+            },
             is_self,
             client,
         })
@@ -36,10 +52,9 @@ impl Node {
             return Ok(());
         }
 
-        let interval = Duration::from_secs(3);
         info!("Starting healthcheck for cluster node: {}...", self.name);
         loop {
-            sleep(interval).await;
+            sleep(self.healthcheck.interval).await;
             if let Err(error) = self.client.ping().await {
                 error!("Healthcheck failed for cluster node: {}", self.name);
                 match error {

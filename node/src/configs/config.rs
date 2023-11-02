@@ -16,6 +16,9 @@ pub struct NodeConfig {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct ClusterConfig {
     pub max_timeout: u32,
+    pub healthcheck_interval: u64,
+    pub reconnection_interval: u64,
+    pub reconnection_retries: u32,
     pub nodes: Vec<ClusterNodeConfig>,
 }
 
@@ -38,6 +41,9 @@ impl Default for ClusterConfig {
     fn default() -> Self {
         Self {
             max_timeout: 1000,
+            healthcheck_interval: 3000,
+            reconnection_interval: 1000,
+            reconnection_retries: 10,
             nodes: vec![],
         }
     }

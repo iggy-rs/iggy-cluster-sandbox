@@ -18,7 +18,7 @@ pub enum ClientState {
 }
 #[derive(Debug)]
 pub struct ClusterNodeClient {
-    pub(crate) node_address: SocketAddr,
+    pub(crate) address: SocketAddr,
     pub(crate) stream: Mutex<Option<TcpStream>>,
     pub(crate) state: Mutex<ClientState>,
     pub(crate) reconnection_retries: u32,
@@ -27,27 +27,25 @@ pub struct ClusterNodeClient {
 
 impl ClusterNodeClient {
     pub fn new(
-        node_address: &str,
+        address: &str,
         reconnection_retries: u32,
         reconnection_interval: u64,
     ) -> Result<Self, SystemError> {
-        let address = node_address;
-        let node_address = node_address.parse::<SocketAddr>();
-        if node_address.is_err() {
-            return Err(SystemError::InvalidClusterNodeAddress(address.to_string()));
+        let node_address = address;
+        let address = address.parse::<SocketAddr>();
+        if address.is_err() {
+            return Err(SystemError::InvalidClusterNodeAddress(
+                node_address.to_string(),
+            ));
         }
 
         Ok(Self {
-            node_address: node_address.unwrap(),
+            address: address.unwrap(),
             stream: Mutex::new(None),
             state: Mutex::new(ClientState::Disconnected),
             reconnection_retries,
             reconnection_interval,
         })
-    }
-
-    pub fn new_with_defaults(node_address: &str) -> Result<Self, SystemError> {
-        Self::new(node_address, 10, 1000)
     }
 
     pub async fn connect(&self) -> Result<(), SystemError> {
@@ -58,17 +56,17 @@ impl ClusterNodeClient {
         let mut retry_count = 0;
         let remote_address;
         loop {
-            info!("Connecting to cluster node: {}...", self.node_address);
-            let connection = TcpStream::connect(self.node_address).await;
+            info!("Connecting to cluster node: {}...", self.address);
+            let connection = TcpStream::connect(self.address).await;
             if connection.is_err() {
-                error!("Failed to connect to cluster node: {}", self.node_address);
+                error!("Failed to connect to cluster node: {}", self.address);
                 if retry_count < self.reconnection_retries {
                     retry_count += 1;
                     info!(
                         "Retrying ({}/{}) to connect to cluster node: {} in: {} ms...",
                         retry_count,
                         self.reconnection_retries,
-                        self.node_address,
+                        self.address,
                         self.reconnection_interval
                     );
                     sleep(Duration::from_millis(self.reconnection_interval)).await;
@@ -76,7 +74,7 @@ impl ClusterNodeClient {
                 }
 
                 return Err(SystemError::CannotConnectToClusterNode(
-                    self.node_address.to_string(),
+                    self.address.to_string(),
                 ));
             }
 
@@ -96,17 +94,17 @@ impl ClusterNodeClient {
             return Ok(());
         }
 
-        info!("Disconnecting from cluster node: {}...", self.node_address);
+        info!("Disconnecting from cluster node: {}...", self.address);
         self.set_state(ClientState::Disconnected).await;
         self.stream.lock().await.take();
-        info!("Disconnected from  cluster node: {}.", self.node_address);
+        info!("Disconnected from  cluster node: {}.", self.address);
         Ok(())
     }
 
     pub async fn ping(&self) -> Result<(), SystemError> {
-        info!("Sending a ping to cluster node: {}...", self.node_address);
+        info!("Sending a ping to cluster node: {}...", self.address);
         self.send_request(Command::Ping).await?;
-        info!("Received a pong from cluster node: {}.", self.node_address);
+        info!("Received a pong from cluster node: {}.", self.address);
         Ok(())
     }
 
@@ -123,10 +121,7 @@ impl ClusterNodeClient {
             return Err(SystemError::ClientDisconnected);
         }
 
-        info!(
-            "Sending a request to cluster node: {}...",
-            self.node_address
-        );
+        info!("Sending a request to cluster node: {}...", self.address);
         let stream = stream.as_mut().unwrap();
         let command_bytes = command.as_bytes();
         let mut payload = Vec::with_capacity(8 + command_bytes.len());

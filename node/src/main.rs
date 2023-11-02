@@ -23,10 +23,11 @@ async fn main() -> Result<(), SystemError> {
     println!("{system_config}");
     tcp_server::start(&system_config.node.address);
 
-    let mut cluster = Cluster::new(&system_config.node.name, &system_config.node.address)?;
-    for node in system_config.cluster.nodes {
-        cluster.add_node(&node.name, &node.address)?;
-    }
+    let cluster = Cluster::new(
+        &system_config.node.name,
+        &system_config.node.address,
+        &system_config.cluster,
+    )?;
     cluster.connect().await?;
     cluster.start_healthcheck()?;
     info!("Press CTRL+C shutdown Iggy node...");
