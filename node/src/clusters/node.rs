@@ -1,4 +1,4 @@
-use crate::clusters::cluster_node_client::ClusterNodeClient;
+use crate::clusters::node_client::NodeClient;
 use crate::error::SystemError;
 use monoio::time::sleep;
 use std::time::Duration;
@@ -10,7 +10,7 @@ pub struct Node {
     pub address: String,
     healthcheck: NodeHealthcheck,
     is_self: bool,
-    client: ClusterNodeClient,
+    client: NodeClient,
 }
 
 #[derive(Debug)]
@@ -27,7 +27,7 @@ impl Node {
         reconnection_interval: u64,
         reconnection_retries: u32,
     ) -> Result<Self, SystemError> {
-        let client = ClusterNodeClient::new(address, reconnection_retries, reconnection_interval)?;
+        let client = NodeClient::new(address, reconnection_retries, reconnection_interval)?;
         Ok(Self {
             name: name.to_string(),
             address: address.to_string(),

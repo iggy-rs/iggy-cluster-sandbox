@@ -43,7 +43,7 @@ impl Default for ClusterConfig {
             max_timeout: 1000,
             healthcheck_interval: 3000,
             reconnection_interval: 1000,
-            reconnection_retries: 10,
+            reconnection_retries: 3,
             nodes: vec![],
         }
     }
