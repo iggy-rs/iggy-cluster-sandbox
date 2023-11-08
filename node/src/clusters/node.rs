@@ -1,4 +1,4 @@
-use crate::clusters::node_client::NodeClient;
+use crate::clusters::node_client::{ClientState, NodeClient};
 use crate::error::SystemError;
 use monoio::time::sleep;
 use std::time::Duration;
@@ -55,26 +55,32 @@ impl Node {
         info!("Starting healthcheck for cluster node: {}...", self.name);
         loop {
             sleep(self.healthcheck.interval).await;
-            if let Err(error) = self.client.ping().await {
-                error!("Healthcheck failed for cluster node: {}", self.name);
-                match error {
-                    SystemError::ClientDisconnected => {
-                        error!("Cluster node disconnected: {}", self.name);
-                        self.connect().await?;
-                        continue;
-                    }
-                    SystemError::InvalidResponse => {
-                        error!("Received invalid response from cluster node: {}", self.name);
-                        self.connect().await?;
-                        continue;
-                    }
-                    _ => {
-                        error!(
-                            "Cluster node healthcheck failed: {}. cannot recover.",
-                            self.name
-                        );
-                        return Err(error);
-                    }
+            let ping = self.client.ping().await;
+            if ping.is_ok() {
+                info!("Healthcheck passed for cluster node: {}", self.name);
+                *self.client.state.lock().await = ClientState::Connected;
+                continue;
+            }
+
+            error!("Healthcheck failed for cluster node: {}", self.name);
+            let error = ping.unwrap_err();
+            match error {
+                SystemError::ClientDisconnected => {
+                    error!("Cluster node disconnected: {}", self.name);
+                    self.connect().await?;
+                    continue;
+                }
+                SystemError::InvalidResponse => {
+                    error!("Received invalid response from cluster node: {}", self.name);
+                    self.connect().await?;
+                    continue;
+                }
+                _ => {
+                    error!(
+                        "Cluster node healthcheck failed: {}. cannot recover.",
+                        self.name
+                    );
+                    return Err(error);
                 }
             }
         }

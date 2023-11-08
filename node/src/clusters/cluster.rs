@@ -1,12 +1,25 @@
 use crate::clusters::node::Node;
 use crate::configs::config::ClusterConfig;
 use crate::error::SystemError;
+use futures::lock::Mutex;
 use std::rc::Rc;
 use tracing::{error, info};
 
 #[derive(Debug)]
 pub struct Cluster {
-    pub nodes: Vec<Rc<Node>>,
+    pub nodes: Vec<Rc<ClusterNode>>,
+}
+
+#[derive(Debug)]
+pub struct ClusterNode {
+    pub state: Mutex<ClusterNodeState>,
+    pub node: Node,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ClusterNodeState {
+    Connected,
+    Disconnected,
 }
 
 impl Cluster {
@@ -16,9 +29,16 @@ impl Cluster {
         config: &ClusterConfig,
     ) -> Result<Self, SystemError> {
         let mut nodes = Vec::new();
-        nodes.push(Self::create_node(self_name, self_address, true, config)?);
+        nodes.push(Rc::new(ClusterNode {
+            state: Mutex::new(ClusterNodeState::Connected),
+            node: Self::create_node(self_name, self_address, true, config)?,
+        }));
         for node in &config.nodes {
-            nodes.push(Self::create_node(&node.name, &node.address, false, config)?);
+            let cluster_node = ClusterNode {
+                state: Mutex::new(ClusterNodeState::Disconnected),
+                node: Self::create_node(&node.name, &node.address, false, config)?,
+            };
+            nodes.push(Rc::new(cluster_node));
         }
 
         Ok(Self { nodes })
@@ -29,21 +49,22 @@ impl Cluster {
         node_address: &str,
         is_self: bool,
         config: &ClusterConfig,
-    ) -> Result<Rc<Node>, SystemError> {
-        Ok(Rc::new(Node::new(
+    ) -> Result<Node, SystemError> {
+        Node::new(
             node_name,
             node_address,
             is_self,
             config.healthcheck_interval,
             config.reconnection_interval,
             config.reconnection_retries,
-        )?))
+        )
     }
 
     pub async fn connect(&self) -> Result<(), SystemError> {
         info!("Connecting all cluster nodes...");
-        for node in &self.nodes {
-            node.connect().await?;
+        for cluster_node in &self.nodes {
+            cluster_node.node.connect().await?;
+            *cluster_node.state.lock().await = ClusterNodeState::Connected;
         }
         info!("All cluster nodes connected.");
         Ok(())
@@ -54,13 +75,14 @@ impl Cluster {
             "Starting healthcheck for all cluster nodes {}...",
             self.nodes.len()
         );
-        for node in &self.nodes {
-            let node = node.clone();
+        for cluster_node in &self.nodes {
+            let cluster_node = cluster_node.clone();
             monoio::spawn(async move {
-                if node.start_healthcheck().await.is_err() {
+                if cluster_node.node.start_healthcheck().await.is_err() {
+                    *cluster_node.state.lock().await = ClusterNodeState::Disconnected;
                     error!(
                         "Failed to start healthcheck for cluster node: {}",
-                        node.name
+                        cluster_node.node.name
                     );
                 }
             });
@@ -71,8 +93,9 @@ impl Cluster {
 
     pub async fn disconnect(&self) -> Result<(), SystemError> {
         info!("Disconnecting all cluster nodes...");
-        for node in &self.nodes {
-            node.disconnect().await?;
+        for cluster_node in &self.nodes {
+            cluster_node.node.disconnect().await?;
+            *cluster_node.state.lock().await = ClusterNodeState::Disconnected;
         }
         info!("All cluster nodes disconnected.");
         Ok(())

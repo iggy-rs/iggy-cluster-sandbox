@@ -6,7 +6,7 @@ address = "0.0.0.0:8110"
 max_timeout = 1000
 healthcheck_interval = 3000
 reconnection_interval = 1000
-reconnection_retries = 3
+reconnection_retries = 10
 
 [[cluster.nodes]]
 name = "node1"
