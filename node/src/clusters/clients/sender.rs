@@ -9,7 +9,7 @@ const RESPONSE_INITIAL_BYTES_LENGTH: usize = 8;
 
 impl NodeClient {
     pub async fn send_request(&self, command: Command) -> Result<(), SystemError> {
-        let state = self.get_state().await;
+        let state = self.get_client_state().await;
         if state == ClientState::Disconnected {
             warn!("Cannot send a request, client is disconnected.");
             return Err(SystemError::ClientDisconnected);
@@ -31,8 +31,7 @@ impl NodeClient {
         let (write_result, _) = stream.write_all(payload).await;
         if write_result.is_err() {
             error!("Failed to send a request: {:?}", write_result.err());
-            self.set_state(ClientState::Disconnected).await;
-            return Err(SystemError::ClientDisconnected);
+            return Err(SystemError::SendRequestFailed);
         }
 
         let buffer = vec![0u8; RESPONSE_INITIAL_BYTES_LENGTH];

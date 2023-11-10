@@ -3,6 +3,7 @@ use crate::error::SystemError;
 use futures::lock::Mutex;
 use monoio::net::TcpStream;
 use monoio::time::sleep;
+use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tracing::{error, info};
@@ -12,13 +13,22 @@ pub enum ClientState {
     Disconnected,
     Connected,
 }
+
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum HealthState {
+    Unknown,
+    Healthy,
+    Unhealthy,
+}
+
 #[derive(Debug)]
 pub struct NodeClient {
     pub(crate) address: SocketAddr,
     pub(crate) stream: Mutex<Option<TcpStream>>,
-    pub(crate) state: Mutex<ClientState>,
-    pub(crate) reconnection_retries: u32,
-    pub(crate) reconnection_interval: u64,
+    client_state: Mutex<ClientState>,
+    health_state: Mutex<HealthState>,
+    reconnection_retries: u32,
+    reconnection_interval: u64,
 }
 
 impl NodeClient {
@@ -38,14 +48,15 @@ impl NodeClient {
         Ok(Self {
             address: address.unwrap(),
             stream: Mutex::new(None),
-            state: Mutex::new(ClientState::Disconnected),
+            client_state: Mutex::new(ClientState::Disconnected),
+            health_state: Mutex::new(HealthState::Unknown),
             reconnection_retries,
             reconnection_interval,
         })
     }
 
     pub async fn connect(&self) -> Result<(), SystemError> {
-        if self.get_state().await == ClientState::Connected {
+        if self.get_client_state().await == ClientState::Connected {
             return Ok(());
         }
 
@@ -76,11 +87,12 @@ impl NodeClient {
                 ));
             }
 
+            elapsed = now.elapsed();
             let stream = connection.unwrap();
             remote_address = stream.peer_addr()?;
             self.stream.lock().await.replace(stream);
-            self.set_state(ClientState::Connected).await;
-            elapsed = now.elapsed();
+            self.set_client_state(ClientState::Connected).await;
+            self.set_health_state(HealthState::Healthy).await;
             break;
         }
 
@@ -92,12 +104,17 @@ impl NodeClient {
     }
 
     pub async fn disconnect(&self) -> Result<(), SystemError> {
-        if self.get_state().await == ClientState::Disconnected {
+        if self.get_client_state().await == ClientState::Disconnected {
             return Ok(());
         }
 
-        info!("Disconnecting from cluster node: {}...", self.address);
-        self.set_state(ClientState::Disconnected).await;
+        let health_state = self.get_health_state().await;
+        info!(
+            "Disconnecting from cluster node: {}, health state: {health_state}...",
+            self.address
+        );
+        self.set_client_state(ClientState::Disconnected).await;
+        self.set_health_state(HealthState::Unknown).await;
         self.stream.lock().await.take();
         info!("Disconnected from  cluster node: {}.", self.address);
         Ok(())
@@ -106,7 +123,12 @@ impl NodeClient {
     pub async fn ping(&self) -> Result<(), SystemError> {
         info!("Sending a ping to cluster node: {}...", self.address);
         let now = Instant::now();
-        self.send_request(Command::Ping).await?;
+        if let Err(error) = self.send_request(Command::Ping).await {
+            error!("Failed to send a ping to cluster node: {}", self.address);
+            self.set_health_state(HealthState::Unhealthy).await;
+            self.set_client_state(ClientState::Disconnected).await;
+            return Err(error);
+        }
         let elapsed = now.elapsed();
         info!(
             "Received a pong from cluster node: {} in {} ms.",
@@ -116,11 +138,38 @@ impl NodeClient {
         Ok(())
     }
 
-    pub async fn get_state(&self) -> ClientState {
-        *self.state.lock().await
+    pub async fn get_client_state(&self) -> ClientState {
+        *self.client_state.lock().await
     }
 
-    pub async fn set_state(&self, state: ClientState) {
-        *self.state.lock().await = state;
+    async fn set_client_state(&self, state: ClientState) {
+        *self.client_state.lock().await = state;
+    }
+
+    pub async fn get_health_state(&self) -> HealthState {
+        *self.health_state.lock().await
+    }
+
+    async fn set_health_state(&self, state: HealthState) {
+        *self.health_state.lock().await = state;
+    }
+}
+
+impl Display for ClientState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClientState::Disconnected => write!(f, "disconnected"),
+            ClientState::Connected => write!(f, "connected"),
+        }
+    }
+}
+
+impl Display for HealthState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            HealthState::Unknown => write!(f, "unknown"),
+            HealthState::Healthy => write!(f, "healthy"),
+            HealthState::Unhealthy => write!(f, "unhealthy"),
+        }
     }
 }

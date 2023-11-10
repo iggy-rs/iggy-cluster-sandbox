@@ -1,4 +1,4 @@
-use crate::clusters::node_client::{ClientState, NodeClient};
+use crate::clusters::node_client::NodeClient;
 use crate::error::SystemError;
 use monoio::time::sleep;
 use std::time::Duration;
@@ -58,13 +58,17 @@ impl Node {
             let ping = self.client.ping().await;
             if ping.is_ok() {
                 info!("Healthcheck passed for cluster node: {}", self.name);
-                *self.client.state.lock().await = ClientState::Connected;
                 continue;
             }
 
             error!("Healthcheck failed for cluster node: {}", self.name);
             let error = ping.unwrap_err();
             match error {
+                SystemError::SendRequestFailed => {
+                    error!("Failed to send a request to cluster node: {}", self.name);
+                    self.connect().await?;
+                    continue;
+                }
                 SystemError::ClientDisconnected => {
                     error!("Cluster node disconnected: {}", self.name);
                     self.connect().await?;
