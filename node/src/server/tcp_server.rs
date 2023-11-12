@@ -1,5 +1,5 @@
-use crate::server::tcp_handler::{handle_connection, handle_error};
-use crate::server::tcp_sender::TcpSender;
+use crate::connection::tcp_handler::TcpHandler;
+use crate::server::tcp_connection::{handle_error, tcp_listener};
 use monoio::net::TcpListener;
 use tracing::{error, info};
 
@@ -18,9 +18,9 @@ pub fn start(address: &str) {
             match listener.accept().await {
                 Ok((stream, address)) => {
                     info!("Accepted new TCP connection: {address}");
-                    let mut sender = TcpSender { stream };
+                    let mut handler = TcpHandler::new(stream);
                     monoio::spawn(async move {
-                        if let Err(error) = handle_connection(&mut sender).await {
+                        if let Err(error) = tcp_listener(&mut handler).await {
                             handle_error(error);
                         }
                     });

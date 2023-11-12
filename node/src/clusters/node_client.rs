@@ -1,4 +1,5 @@
 use crate::command::Command;
+use crate::connection::tcp_handler::TcpHandler;
 use crate::error::SystemError;
 use futures::lock::Mutex;
 use monoio::net::TcpStream;
@@ -24,7 +25,7 @@ pub enum HealthState {
 #[derive(Debug)]
 pub struct NodeClient {
     pub(crate) address: SocketAddr,
-    pub(crate) stream: Mutex<Option<TcpStream>>,
+    pub(crate) handler: Mutex<Option<TcpHandler>>,
     client_state: Mutex<ClientState>,
     health_state: Mutex<HealthState>,
     reconnection_retries: u32,
@@ -47,7 +48,7 @@ impl NodeClient {
 
         Ok(Self {
             address: address.unwrap(),
-            stream: Mutex::new(None),
+            handler: Mutex::new(None),
             client_state: Mutex::new(ClientState::Disconnected),
             health_state: Mutex::new(HealthState::Unknown),
             reconnection_retries,
@@ -90,7 +91,7 @@ impl NodeClient {
             elapsed = now.elapsed();
             let stream = connection.unwrap();
             remote_address = stream.peer_addr()?;
-            self.stream.lock().await.replace(stream);
+            self.handler.lock().await.replace(TcpHandler::new(stream));
             self.set_client_state(ClientState::Connected).await;
             self.set_health_state(HealthState::Healthy).await;
             break;
@@ -115,7 +116,7 @@ impl NodeClient {
         );
         self.set_client_state(ClientState::Disconnected).await;
         self.set_health_state(HealthState::Unknown).await;
-        self.stream.lock().await.take();
+        self.handler.lock().await.take();
         info!("Disconnected from  cluster node: {}.", self.address);
         Ok(())
     }

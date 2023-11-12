@@ -9,6 +9,7 @@ use tracing::info;
 mod clusters;
 mod command;
 mod configs;
+mod connection;
 mod error;
 mod server;
 

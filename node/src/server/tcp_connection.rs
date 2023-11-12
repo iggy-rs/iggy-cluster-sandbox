@@ -1,16 +1,16 @@
 use crate::command::Command;
+use crate::connection::tcp_handler::TcpHandler;
 use crate::error::SystemError;
-use crate::server::tcp_sender::TcpSender;
 use std::io::ErrorKind;
 use tracing::{debug, error, info};
 
 const INITIAL_BYTES_LENGTH: usize = 8;
 
-pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), SystemError> {
+pub(crate) async fn tcp_listener(handler: &mut TcpHandler) -> Result<(), SystemError> {
     let mut initial_buffer = vec![0u8; INITIAL_BYTES_LENGTH];
     let mut read_length;
     loop {
-        (read_length, initial_buffer) = sender.read(initial_buffer).await?;
+        (read_length, initial_buffer) = handler.read(initial_buffer).await?;
         if read_length != INITIAL_BYTES_LENGTH {
             error!(
                 "Unable to read the TCP request length, expected: {} bytes, received: {} bytes.",
@@ -24,15 +24,15 @@ pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), Syst
         let length = u32::from_le_bytes(initial_buffer[4..8].try_into()?);
         debug!("Received a TCP request, command: {command}, length: {length}");
         if length == 0 {
-            if handle_command(sender, command, None).await.is_err() {
+            if handle_command(handler, command, None).await.is_err() {
                 error!("Unable to handle the TCP request.");
             }
             continue;
         }
 
         let mut payload_buffer = vec![0u8; length as usize];
-        (_, payload_buffer) = sender.read(payload_buffer).await?;
-        if handle_command(sender, command, Some(&payload_buffer))
+        (_, payload_buffer) = handler.read(payload_buffer).await?;
+        if handle_command(handler, command, Some(&payload_buffer))
             .await
             .is_err()
         {
@@ -42,7 +42,7 @@ pub(crate) async fn handle_connection(sender: &mut TcpSender) -> Result<(), Syst
 }
 
 async fn handle_command(
-    sender: &mut TcpSender,
+    handler: &mut TcpHandler,
     command: Command,
     payload: Option<&[u8]>,
 ) -> Result<(), SystemError> {
@@ -52,7 +52,7 @@ async fn handle_command(
     );
     match command {
         Command::Ping => {
-            sender.send_empty_ok_response().await?;
+            handler.send_empty_ok_response().await?;
             info!("Sent a ping response.");
         }
     }
