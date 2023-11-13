@@ -28,7 +28,10 @@ impl TcpHandler {
         Ok((read_bytes.unwrap(), buffer))
     }
 
-    pub async fn send_request(&mut self, command: &Command) -> Result<Vec<u8>, SystemError> {
+    pub async fn send_request(
+        &mut self,
+        command: &Command,
+    ) -> Result<(usize, Vec<u8>), SystemError> {
         self.send(command.as_code(), &command.as_bytes(), true)
             .await
     }
@@ -47,22 +50,21 @@ impl TcpHandler {
         code: u32,
         payload: &[u8],
         read_response: bool,
-    ) -> Result<Vec<u8>, SystemError> {
-        debug!("Sending data with code: {code}...");
+    ) -> Result<(usize, Vec<u8>), SystemError> {
         let payload_length = payload.len();
         let mut buffer = Vec::with_capacity(4 + payload_length + payload.len());
         buffer.put_u32_le(code);
         buffer.put_u32_le(payload_length as u32);
         buffer.extend(payload);
-        debug!("Sending data with code: {code}...");
+        debug!("Sending data with code: {code}, payload length: {payload_length}...");
         let result = self.stream.write_all(buffer).await;
         if result.0.is_err() {
             return Err(SystemError::from(result.0.unwrap_err()));
         }
 
-        debug!("Sent data with code: {code}");
+        debug!("Sent data with code: {code}, payload length: {payload_length}.");
         if !read_response {
-            return Ok(EMPTY_BYTES);
+            return Ok((0, EMPTY_BYTES));
         }
 
         let buffer = vec![0u8; RESPONSE_INITIAL_BYTES_LENGTH];
@@ -84,6 +86,12 @@ impl TcpHandler {
             return Err(SystemError::InvalidResponse);
         }
 
-        Ok(EMPTY_BYTES)
+        let payload_length = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
+        debug!("Received a response with status: {status}, payload length: {payload_length}.");
+        if payload_length == 0 {
+            return Ok((0, EMPTY_BYTES));
+        }
+
+        self.read(vec![0u8; payload_length as usize]).await
     }
 }

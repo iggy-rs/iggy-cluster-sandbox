@@ -5,8 +5,15 @@ use futures::lock::Mutex;
 use std::rc::Rc;
 use tracing::{error, info};
 
+#[derive(Debug, PartialEq)]
+pub enum ClusterState {
+    Uninitialized,
+    Healthy,
+}
+
 #[derive(Debug)]
 pub struct Cluster {
+    pub state: Mutex<ClusterState>,
     pub nodes: Vec<Rc<ClusterNode>>,
 }
 
@@ -41,7 +48,10 @@ impl Cluster {
             nodes.push(Rc::new(cluster_node));
         }
 
-        Ok(Self { nodes })
+        Ok(Self {
+            state: Mutex::new(ClusterState::Uninitialized),
+            nodes,
+        })
     }
 
     fn create_node(
@@ -63,9 +73,20 @@ impl Cluster {
     pub async fn connect(&self) -> Result<(), SystemError> {
         info!("Connecting all cluster nodes...");
         for cluster_node in &self.nodes {
-            cluster_node.node.connect().await?;
-            *cluster_node.state.lock().await = ClusterNodeState::Connected;
+            let cluster_node = cluster_node.clone();
+            monoio::spawn(async move {
+                if cluster_node.node.connect().await.is_err() {
+                    error!(
+                        "Failed to connect to cluster node: {}",
+                        cluster_node.node.name
+                    );
+                }
+
+                *cluster_node.state.lock().await = ClusterNodeState::Connected;
+            });
         }
+
+        self.set_state(ClusterState::Healthy).await;
         info!("All cluster nodes connected.");
         Ok(())
     }
@@ -97,7 +118,12 @@ impl Cluster {
             cluster_node.node.disconnect().await?;
             *cluster_node.state.lock().await = ClusterNodeState::Disconnected;
         }
+        self.set_state(ClusterState::Uninitialized).await;
         info!("All cluster nodes disconnected.");
         Ok(())
+    }
+
+    async fn set_state(&self, state: ClusterState) {
+        *self.state.lock().await = state;
     }
 }
