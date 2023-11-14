@@ -26,4 +26,6 @@ pub enum SystemError {
     ClientDisconnected,
     #[error("Send request failed")]
     SendRequestFailed,
+    #[error("Invalid command")]
+    InvalidCommand,
 }

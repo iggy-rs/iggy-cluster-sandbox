@@ -1,4 +1,4 @@
-use crate::command::Command;
+use crate::commands::ping::Ping;
 use crate::connection::tcp_handler::TcpHandler;
 use crate::error::SystemError;
 use futures::lock::Mutex;
@@ -124,7 +124,7 @@ impl NodeClient {
     pub async fn ping(&self) -> Result<(), SystemError> {
         info!("Sending a ping to cluster node: {}...", self.address);
         let now = Instant::now();
-        if let Err(error) = self.send_request(Command::Ping).await {
+        if let Err(error) = self.send_request(&Ping::new_command()).await {
             error!("Failed to send a ping to cluster node: {}", self.address);
             self.set_health_state(HealthState::Unhealthy).await;
             self.set_client_state(ClientState::Disconnected).await;

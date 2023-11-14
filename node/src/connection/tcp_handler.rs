@@ -1,4 +1,4 @@
-use crate::command::Command;
+use crate::commands::command::Command;
 use crate::error::SystemError;
 use bytes::BufMut;
 use monoio::io::{AsyncReadRent, AsyncWriteRentExt};
@@ -32,8 +32,7 @@ impl TcpHandler {
         &mut self,
         command: &Command,
     ) -> Result<(usize, Vec<u8>), SystemError> {
-        self.send(command.as_code(), &command.as_bytes(), true)
-            .await
+        self.send(command.as_bytes(), true).await
     }
 
     pub async fn send_empty_ok_response(&mut self) -> Result<(), SystemError> {
@@ -41,28 +40,27 @@ impl TcpHandler {
     }
 
     pub async fn send_ok_response(&mut self, payload: &[u8]) -> Result<(), SystemError> {
-        self.send(STATUS_OK, payload, false).await?;
+        let mut data = Vec::with_capacity(8 + payload.len());
+        data.put_u32_le(STATUS_OK);
+        data.put_u32_le(payload.len() as u32);
+        data.extend(payload);
+        self.send(data, false).await?;
         Ok(())
     }
 
     async fn send(
         &mut self,
-        code: u32,
-        payload: &[u8],
+        payload: Vec<u8>,
         read_response: bool,
     ) -> Result<(usize, Vec<u8>), SystemError> {
         let payload_length = payload.len();
-        let mut buffer = Vec::with_capacity(4 + payload_length + payload.len());
-        buffer.put_u32_le(code);
-        buffer.put_u32_le(payload_length as u32);
-        buffer.extend(payload);
-        debug!("Sending data with code: {code}, payload length: {payload_length}...");
-        let result = self.stream.write_all(buffer).await;
+        debug!("Sending data with payload length: {payload_length}...");
+        let result = self.stream.write_all(payload).await;
         if result.0.is_err() {
             return Err(SystemError::from(result.0.unwrap_err()));
         }
 
-        debug!("Sent data with code: {code}, payload length: {payload_length}.");
+        debug!("Sent data with payload length: {payload_length}.");
         if !read_response {
             return Ok((0, EMPTY_BYTES));
         }

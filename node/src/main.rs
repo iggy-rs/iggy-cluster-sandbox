@@ -6,8 +6,9 @@ use figlet_rs::FIGfont;
 use monoio::utils::CtrlC;
 use tracing::info;
 
+mod bytes_serializable;
 mod clusters;
-mod command;
+mod commands;
 mod configs;
 mod connection;
 mod error;

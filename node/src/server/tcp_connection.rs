@@ -1,4 +1,4 @@
-use crate::command::Command;
+use crate::commands::command::Command;
 use crate::connection::tcp_handler::TcpHandler;
 use crate::error::SystemError;
 use std::io::ErrorKind;
@@ -19,12 +19,12 @@ pub(crate) async fn tcp_listener(handler: &mut TcpHandler) -> Result<(), SystemE
             return Err(SystemError::InvalidRequest);
         }
 
-        let command_code = u32::from_le_bytes(initial_buffer[..4].try_into()?);
-        let command = Command::from_code(command_code)?;
+        let code = u32::from_le_bytes(initial_buffer[..4].try_into()?);
         let length = u32::from_le_bytes(initial_buffer[4..8].try_into()?);
-        debug!("Received a TCP request, command: {command}, length: {length}");
+        debug!("Received a TCP request, command code: {code}, payload length: {length}");
         if length == 0 {
-            if handle_command(handler, command, None).await.is_err() {
+            let command = Command::from_bytes(code, &[])?;
+            if handle_command(handler, &command).await.is_err() {
                 error!("Unable to handle the TCP request.");
             }
             continue;
@@ -32,31 +32,28 @@ pub(crate) async fn tcp_listener(handler: &mut TcpHandler) -> Result<(), SystemE
 
         let mut payload_buffer = vec![0u8; length as usize];
         (_, payload_buffer) = handler.read(payload_buffer).await?;
-        if handle_command(handler, command, Some(&payload_buffer))
-            .await
-            .is_err()
-        {
+        let command = Command::from_bytes(code, &payload_buffer)?;
+        if handle_command(handler, &command).await.is_err() {
             error!("Unable to handle the TCP request.");
         }
     }
 }
 
-async fn handle_command(
-    handler: &mut TcpHandler,
-    command: Command,
-    payload: Option<&[u8]>,
-) -> Result<(), SystemError> {
-    info!(
-        "Handling a TCP request, command: {command}, with payload: {}",
-        payload.is_some()
-    );
+async fn handle_command(handler: &mut TcpHandler, command: &Command) -> Result<(), SystemError> {
+    info!("Handling a TCP request...");
     match command {
-        Command::Ping => {
+        Command::Hello(hello) => {
+            info!("Received a hello command, name: {}.", hello.name);
+            handler.send_empty_ok_response().await?;
+            info!("Sent a hello response.");
+        }
+        Command::Ping(_) => {
+            info!("Received a ping command.");
             handler.send_empty_ok_response().await?;
             info!("Sent a ping response.");
         }
     }
-    info!("Handled a TCP request, command: {command}.");
+    info!("Handled a TCP request.");
     Ok(())
 }
 
