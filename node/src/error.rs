@@ -28,4 +28,6 @@ pub enum SystemError {
     SendRequestFailed,
     #[error("Invalid command")]
     InvalidCommand,
+    #[error("Invalid node: {0}")]
+    InvalidNode(String),
 }

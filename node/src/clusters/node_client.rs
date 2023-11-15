@@ -1,3 +1,4 @@
+use crate::commands::hello::Hello;
 use crate::commands::ping::Ping;
 use crate::connection::tcp_handler::TcpHandler;
 use crate::error::SystemError;
@@ -7,7 +8,7 @@ use monoio::time::sleep;
 use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ClientState {
@@ -24,6 +25,7 @@ pub enum HealthState {
 
 #[derive(Debug)]
 pub struct NodeClient {
+    pub(crate) self_name: String,
     pub(crate) address: SocketAddr,
     pub(crate) handler: Mutex<Option<TcpHandler>>,
     client_state: Mutex<ClientState>,
@@ -34,6 +36,7 @@ pub struct NodeClient {
 
 impl NodeClient {
     pub fn new(
+        self_name: &str,
         address: &str,
         reconnection_retries: u32,
         reconnection_interval: u64,
@@ -47,6 +50,7 @@ impl NodeClient {
         }
 
         Ok(Self {
+            self_name: self_name.to_string(),
             address: address.unwrap(),
             handler: Mutex::new(None),
             client_state: Mutex::new(ClientState::Disconnected),
@@ -58,6 +62,7 @@ impl NodeClient {
 
     pub async fn connect(&self) -> Result<(), SystemError> {
         if self.get_client_state().await == ClientState::Connected {
+            warn!("Already connected to cluster node: {}", self.address);
             return Ok(());
         }
 
@@ -98,9 +103,14 @@ impl NodeClient {
         }
 
         info!(
-            "Connected to cluster node: {remote_address} in {} ms.",
+            "Connected to cluster node: {remote_address} in {} ms. Sending hello message...",
             elapsed.as_millis()
         );
+
+        self.send_request(&Hello::new_command(self.self_name.clone()))
+            .await?;
+        info!("Sent hello message to cluster node: {}", self.address);
+
         Ok(())
     }
 

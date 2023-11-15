@@ -1,4 +1,5 @@
 use crate::bytes_serializable::BytesSerializable;
+use crate::commands::command::Command;
 use crate::error::SystemError;
 use bytes::BufMut;
 use std::str::from_utf8;
@@ -6,6 +7,12 @@ use std::str::from_utf8;
 #[derive(Debug, Default, PartialEq)]
 pub struct Hello {
     pub name: String,
+}
+
+impl Hello {
+    pub fn new_command(name: String) -> Command {
+        Command::Hello(Hello { name })
+    }
 }
 
 impl BytesSerializable for Hello {

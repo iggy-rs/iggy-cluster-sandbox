@@ -17,8 +17,8 @@ pub enum Command {
 impl Command {
     pub fn as_bytes(&self) -> Vec<u8> {
         match self {
-            Command::Hello(command) => map_as_bytes(HELLO_CODE, command),
-            Command::Ping(command) => map_as_bytes(PING_CODE, command),
+            Command::Hello(command) => to_bytes(HELLO_CODE, command),
+            Command::Ping(command) => to_bytes(PING_CODE, command),
         }
     }
 
@@ -34,7 +34,7 @@ impl Command {
     }
 }
 
-fn map_as_bytes<T: BytesSerializable>(code: u32, command: &T) -> Vec<u8> {
+fn to_bytes<T: BytesSerializable>(code: u32, command: &T) -> Vec<u8> {
     let bytes = command.as_bytes();
     let mut command = Vec::with_capacity(8 + bytes.len());
     command.put_u32_le(code);
