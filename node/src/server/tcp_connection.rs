@@ -73,6 +73,14 @@ async fn handle_command(
             handler.send_empty_ok_response().await?;
             info!("Sent a ping response.");
         }
+        Command::AppendData(append_data) => {
+            info!(
+                "Received an append data command, data length: {}.",
+                append_data.data.len()
+            );
+            handler.send_empty_ok_response().await?;
+            info!("Sent an append data response.");
+        }
     }
     info!("Handled a TCP request.");
     Ok(())

@@ -2,6 +2,7 @@ use crate::clusters::cluster::Cluster;
 use crate::configs::config_provider::FileConfigProvider;
 use crate::error::SystemError;
 use crate::server::tcp_server;
+use crate::streaming::data_appender::DataAppender;
 use figlet_rs::FIGfont;
 use monoio::utils::CtrlC;
 use std::rc::Rc;
@@ -14,6 +15,7 @@ mod configs;
 mod connection;
 mod error;
 mod server;
+mod streaming;
 
 #[monoio::main(timer_enabled = true)]
 async fn main() -> Result<(), SystemError> {
@@ -24,6 +26,8 @@ async fn main() -> Result<(), SystemError> {
     println!("{}", figure.unwrap());
     let system_config = config_provider.load_config().await?;
     println!("{system_config}");
+    let data_appender = DataAppender::new(&system_config.stream.path);
+    info!("{data_appender}");
     let cluster = Cluster::new(
         &system_config.node.name,
         &system_config.node.address,

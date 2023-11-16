@@ -1,3 +1,6 @@
+[stream]
+path = "/local_data/streams"
+
 [node]
 name = "node2"
 address = "0.0.0.0:8110"

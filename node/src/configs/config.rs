@@ -5,6 +5,12 @@ use std::fmt::{Display, Formatter};
 pub struct SystemConfig {
     pub node: NodeConfig,
     pub cluster: ClusterConfig,
+    pub stream: Stream,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Stream {
+    pub path: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -26,6 +32,14 @@ pub struct ClusterConfig {
 pub struct ClusterNodeConfig {
     pub name: String,
     pub address: String,
+}
+
+impl Default for Stream {
+    fn default() -> Self {
+        Self {
+            path: "local_data/streams".to_string(),
+        }
+    }
 }
 
 impl Default for NodeConfig {
