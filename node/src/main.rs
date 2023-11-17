@@ -27,7 +27,7 @@ async fn main() -> Result<(), SystemError> {
     let system_config = config_provider.load_config().await?;
     println!("{system_config}");
     let data_appender = DataAppender::new(&system_config.stream.path);
-    info!("{data_appender}");
+    data_appender.init();
     let cluster = Cluster::new(
         &system_config.node.name,
         &system_config.node.address,

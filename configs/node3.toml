@@ -1,5 +1,5 @@
 [stream]
-path = "/local_data/streams"
+path = "local_data/node3/streams"
 
 [node]
 name = "node3"
