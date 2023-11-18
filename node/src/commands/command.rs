@@ -1,5 +1,5 @@
 use crate::bytes_serializable::BytesSerializable;
-use crate::commands::append_data::AppendData;
+use crate::commands::append_message::AppendMessage;
 use crate::commands::hello::Hello;
 use crate::commands::ping::Ping;
 use crate::error::SystemError;
@@ -14,7 +14,7 @@ const APPEND_DATA_CODE: u32 = 3;
 pub enum Command {
     Hello(Hello),
     Ping(Ping),
-    AppendData(AppendData),
+    AppendData(AppendMessage),
 }
 
 impl Command {
@@ -33,7 +33,7 @@ impl Command {
         match code {
             HELLO_CODE => Ok(Command::Hello(Hello::from_bytes(bytes)?)),
             PING_CODE => Ok(Command::Ping(Ping::from_bytes(bytes)?)),
-            APPEND_DATA_CODE => Ok(Command::AppendData(AppendData::from_bytes(bytes)?)),
+            APPEND_DATA_CODE => Ok(Command::AppendData(AppendMessage::from_bytes(bytes)?)),
             _ => Err(SystemError::InvalidCommandCode(code)),
         }
     }
@@ -53,7 +53,7 @@ impl Display for Command {
         match self {
             Command::Hello(hello) => write!(f, "Hello from: {}", hello.name),
             Command::Ping(_) => write!(f, "Ping"),
-            Command::AppendData(append_data) => write!(f, "Append data: {}", append_data.data),
+            Command::AppendData(append_data) => write!(f, "Append data: {}", append_data.message),
         }
     }
 }

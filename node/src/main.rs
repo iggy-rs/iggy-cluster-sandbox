@@ -26,12 +26,13 @@ async fn main() -> Result<(), SystemError> {
     println!("{}", figure.unwrap());
     let system_config = config_provider.load_config().await?;
     println!("{system_config}");
-    let data_appender = DataAppender::new(&system_config.stream.path);
-    data_appender.init();
+    let mut data_appender = DataAppender::new(&system_config.stream.path);
+    data_appender.init().await;
     let cluster = Cluster::new(
         &system_config.node.name,
         &system_config.node.address,
         &system_config.cluster,
+        data_appender,
     )?;
     let cluster = Rc::new(cluster);
     tcp_server::start(&system_config.node.address, cluster.clone());

@@ -73,12 +73,17 @@ async fn handle_command(
             handler.send_empty_ok_response().await?;
             info!("Sent a ping response.");
         }
-        Command::AppendData(append_data) => {
+        Command::AppendData(append_message) => {
             info!(
                 "Received an append data command, data length: {}.",
-                append_data.data.len()
+                append_message.message.len()
             );
-            handler.send_empty_ok_response().await?;
+            cluster
+                .data_appender
+                .lock()
+                .await
+                .append_message(&append_message.message)
+                .await;
             info!("Sent an append data response.");
         }
     }
