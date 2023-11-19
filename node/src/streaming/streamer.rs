@@ -2,8 +2,6 @@ use crate::bytes_serializable::BytesSerializable;
 use crate::error::SystemError;
 use crate::streaming::file;
 use crate::streaming::messages::Message;
-use futures::AsyncReadExt;
-use monoio::io::{AsyncReadRentExt, BufReader};
 use std::fmt::{Display, Formatter};
 use std::fs::create_dir_all;
 use std::path::Path;
@@ -98,75 +96,38 @@ impl Streamer {
             .unwrap_or_else(|_| panic!("Failed to read stream file: {}", self.stream_path));
 
         let mut position = 0u64;
-        let reader = BufReader::new(file);
         loop {
-            let offset = reader.buffer().read_u64_le().await;
-            if offset.is_err() {
+            let buffer = vec![0u8; 8];
+            let (result, buffer) = file.read_exact_at(buffer, position).await;
+            if result.is_err() {
                 break;
             }
 
-            let offset = offset.unwrap();
-            let payload_length = reader.buffer().read_u32_le().await;
-            if payload_length.is_err() {
+            let offset = u64::from_le_bytes(buffer.try_into().unwrap());
+            position += 8;
+            let payload_length_buffer = vec![0u8; 4];
+            let payload_length = file.read_exact_at(payload_length_buffer, position).await;
+            if payload_length.0.is_err() {
                 error!("Failed to read payload length");
                 break;
             }
 
-            let payload_length = payload_length.unwrap();
-            let mut payload = vec![0; payload_length as usize];
-            if reader.buffer().read(&mut payload).await.is_err() {
+            let payload_length = u32::from_le_bytes(payload_length.1.try_into().unwrap());
+            position += 4;
+            let payload_buffer = vec![0; payload_length as usize];
+            let payload = file.read_exact_at(payload_buffer, position).await;
+            if payload.0.is_err() {
                 error!("Failed to read payload");
                 break;
             }
 
-            position += 12 + payload_length as u64;
-            let message = Message::new(offset, payload);
+            position += payload_length as u64;
+            let message = Message::new(offset, payload.1);
             messages.push(message);
         }
 
         (messages, position)
     }
-
-    // pub async fn load_messages_v2(&self) -> (Vec<Message>, u64) {
-    //     let mut messages = Vec::new();
-    //     let file = file::open(&self.stream_path)
-    //         .await
-    //         .unwrap_or_else(|_| panic!("Failed to read stream file: {}", self.stream_path));
-    //
-    //     let mut position = 0u64;
-    //     loop {
-    //         let buffer = vec![0u8; 8];
-    //         let (res, buffer) = file.read_at(buffer, position).await;
-    //         if res.is_err() {
-    //             break;
-    //         }
-    //
-    //         let read = res.expect("Failed to read offset");
-    //         let offset = u64::from_le_bytes(buffer[..read].try_into().unwrap());
-    //         position += 8;
-    //         let payload_length_buffer = vec![0u8; 4];
-    //         let payload_length = file.read_at(payload_length_buffer, position).await;
-    //         if payload_length.0.is_err() {
-    //             error!("Failed to read payload length");
-    //             break;
-    //         }
-    //
-    //         let payload_length = u32::from_le_bytes(payload_length.1.try_into().unwrap());
-    //         position += 4;
-    //         let payload_buffer = vec![0; payload_length as usize];
-    //         let payload = file.read_at(payload_buffer, position).await;
-    //         if payload.0.is_err() {
-    //             error!("Failed to read payload");
-    //             break;
-    //         }
-    //
-    //         position += payload_length as u64;
-    //         let message = Message::new(offset, payload.1);
-    //         messages.push(message);
-    //     }
-    //
-    //     (messages, position)
-    // }
 }
 
 impl Display for Streamer {
