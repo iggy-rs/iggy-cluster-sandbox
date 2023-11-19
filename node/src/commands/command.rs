@@ -53,7 +53,7 @@ impl Display for Command {
         match self {
             Command::Hello(hello) => write!(f, "Hello from: {}", hello.name),
             Command::Ping(_) => write!(f, "Ping"),
-            Command::AppendData(append_data) => write!(f, "Append data: {}", append_data.message),
+            Command::AppendData(append_data) => write!(f, "Append data: {:?}", append_data.payload),
         }
     }
 }

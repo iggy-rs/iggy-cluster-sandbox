@@ -2,7 +2,7 @@ use crate::clusters::cluster::Cluster;
 use crate::configs::config_provider::FileConfigProvider;
 use crate::error::SystemError;
 use crate::server::tcp_server;
-use crate::streaming::data_appender::DataAppender;
+use crate::streaming::streamer::Streamer;
 use figlet_rs::FIGfont;
 use monoio::utils::CtrlC;
 use std::rc::Rc;
@@ -26,13 +26,13 @@ async fn main() -> Result<(), SystemError> {
     println!("{}", figure.unwrap());
     let system_config = config_provider.load_config().await?;
     println!("{system_config}");
-    let mut data_appender = DataAppender::new(&system_config.stream.path);
-    data_appender.init().await;
+    let mut streamer = Streamer::new(&system_config.stream.path);
+    streamer.init().await;
     let cluster = Cluster::new(
         &system_config.node.name,
         &system_config.node.address,
         &system_config.cluster,
-        data_appender,
+        streamer,
     )?;
     let cluster = Rc::new(cluster);
     tcp_server::start(&system_config.node.address, cluster.clone());

@@ -29,7 +29,7 @@ pub(crate) async fn tcp_listener(
         debug!("Received a TCP request, command code: {code}, payload length: {length}");
         if length == 0 {
             let command = Command::from_bytes(code, &[])?;
-            if handle_command(handler, &command, &cluster).await.is_err() {
+            if handle_command(handler, command, &cluster).await.is_err() {
                 error!("Unable to handle the TCP request.");
             }
             continue;
@@ -38,7 +38,7 @@ pub(crate) async fn tcp_listener(
         let mut payload_buffer = vec![0u8; length as usize];
         (_, payload_buffer) = handler.read(payload_buffer).await?;
         let command = Command::from_bytes(code, &payload_buffer)?;
-        if handle_command(handler, &command, &cluster).await.is_err() {
+        if handle_command(handler, command, &cluster).await.is_err() {
             error!("Unable to handle the TCP request.");
         }
     }
@@ -46,7 +46,7 @@ pub(crate) async fn tcp_listener(
 
 async fn handle_command(
     handler: &mut TcpHandler,
-    command: &Command,
+    command: Command,
     cluster: &Rc<Cluster>,
 ) -> Result<(), SystemError> {
     info!("Handling a TCP request...");
@@ -76,14 +76,10 @@ async fn handle_command(
         Command::AppendData(append_message) => {
             info!(
                 "Received an append data command, data length: {}.",
-                append_message.message.len()
+                append_message.payload.len()
             );
-            cluster
-                .data_appender
-                .lock()
-                .await
-                .append_message(&append_message.message)
-                .await;
+            let mut streamer = cluster.streamer.lock().await;
+            streamer.append_message(append_message.payload).await?;
             info!("Sent an append data response.");
         }
     }

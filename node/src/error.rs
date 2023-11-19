@@ -30,4 +30,6 @@ pub enum SystemError {
     InvalidCommand,
     #[error("Invalid node: {0}")]
     InvalidNode(String),
+    #[error("Cannot append message")]
+    CannotAppendMessage,
 }

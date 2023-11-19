@@ -1,4 +1,5 @@
 use crate::bytes_serializable::BytesSerializable;
+use crate::error::SystemError;
 use crate::streaming::file;
 use crate::streaming::messages::Message;
 use futures::AsyncReadExt;
@@ -6,13 +7,12 @@ use monoio::io::{AsyncReadRentExt, BufReader};
 use std::fmt::{Display, Formatter};
 use std::fs::create_dir_all;
 use std::path::Path;
-use std::str::from_utf8;
 use tracing::{error, info};
 
 const LOG_FILE: &str = "stream.log";
 
 #[derive(Debug)]
-pub struct DataAppender {
+pub struct Streamer {
     path: String,
     stream_path: String,
     messages: Vec<Message>,
@@ -20,7 +20,7 @@ pub struct DataAppender {
     current_position: u64,
 }
 
-impl DataAppender {
+impl Streamer {
     pub fn new(path: &str) -> Self {
         Self {
             path: path.to_string(),
@@ -53,18 +53,18 @@ impl DataAppender {
         }
 
         info!(
-            "Initialized data appender, stream path: {}, messages count: {}",
+            "Initialized streamer, path: {}, messages count: {}",
             self.stream_path,
             self.messages.len()
         );
     }
 
-    pub async fn append_message(&mut self, value: &str) {
+    pub async fn append_message(&mut self, payload: Vec<u8>) -> Result<(), SystemError> {
         if !self.messages.is_empty() {
             self.current_offset += 1;
         }
 
-        let message = Message::new(self.current_offset, value.to_string());
+        let message = Message::new(self.current_offset, payload);
         let size = message.get_size();
         let bytes = message.as_bytes();
         self.messages.push(message);
@@ -77,12 +77,18 @@ impl DataAppender {
                 "Failed to append message to stream file: {}",
                 self.stream_path
             );
+            return Err(SystemError::CannotAppendMessage);
         }
         self.current_position += size as u64;
+        if file.close().await.is_err() {
+            error!("Failed to close stream file: {}", self.stream_path);
+        }
+
         info!(
             "Appended message to stream file: {} at offset: {}, position: {}",
             self.stream_path, self.current_offset, self.current_position
         );
+        Ok(())
     }
 
     pub async fn load_messages(&self) -> (Vec<Message>, u64) {
@@ -99,6 +105,7 @@ impl DataAppender {
                 break;
             }
 
+            let offset = offset.unwrap();
             let payload_length = reader.buffer().read_u32_le().await;
             if payload_length.is_err() {
                 error!("Failed to read payload length");
@@ -113,17 +120,97 @@ impl DataAppender {
             }
 
             position += 12 + payload_length as u64;
-            let value = from_utf8(&payload).unwrap().to_string();
-            let message = Message::new(offset.unwrap(), value);
+            let message = Message::new(offset, payload);
             messages.push(message);
         }
 
         (messages, position)
     }
+
+    // pub async fn load_messages_v2(&self) -> (Vec<Message>, u64) {
+    //     let mut messages = Vec::new();
+    //     let file = file::open(&self.stream_path)
+    //         .await
+    //         .unwrap_or_else(|_| panic!("Failed to read stream file: {}", self.stream_path));
+    //
+    //     let mut position = 0u64;
+    //     loop {
+    //         let buffer = vec![0u8; 8];
+    //         let (res, buffer) = file.read_at(buffer, position).await;
+    //         if res.is_err() {
+    //             break;
+    //         }
+    //
+    //         let read = res.expect("Failed to read offset");
+    //         let offset = u64::from_le_bytes(buffer[..read].try_into().unwrap());
+    //         position += 8;
+    //         let payload_length_buffer = vec![0u8; 4];
+    //         let payload_length = file.read_at(payload_length_buffer, position).await;
+    //         if payload_length.0.is_err() {
+    //             error!("Failed to read payload length");
+    //             break;
+    //         }
+    //
+    //         let payload_length = u32::from_le_bytes(payload_length.1.try_into().unwrap());
+    //         position += 4;
+    //         let payload_buffer = vec![0; payload_length as usize];
+    //         let payload = file.read_at(payload_buffer, position).await;
+    //         if payload.0.is_err() {
+    //             error!("Failed to read payload");
+    //             break;
+    //         }
+    //
+    //         position += payload_length as u64;
+    //         let message = Message::new(offset, payload.1);
+    //         messages.push(message);
+    //     }
+    //
+    //     (messages, position)
+    // }
 }
 
-impl Display for DataAppender {
+impl Display for Streamer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "DataAppender {{ path: {} }}", self.path)
+        write!(
+            f,
+            "Streamer {{ path: {}, messages: {} }}",
+            self.path,
+            self.messages.len()
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::remove_dir_all;
+
+    const BASE_DIR: &str = "local_data";
+
+    struct Test {}
+
+    impl Test {
+        fn streams_path(&self) -> String {
+            format!("{BASE_DIR}/test_streams")
+        }
+    }
+
+    impl Drop for Test {
+        fn drop(&mut self) {
+            let _ = remove_dir_all(BASE_DIR);
+        }
+    }
+
+    #[monoio::test]
+    async fn messages_should_be_stored_on_disk() {
+        let test = Test {};
+        let mut streamer = Streamer::new(&test.streams_path());
+        streamer.init().await;
+        let message1 = b"test".to_vec();
+        let result = streamer.append_message(message1).await;
+        assert!(result.is_ok());
+        let (loaded_messages, position) = streamer.load_messages().await;
+        assert!(position > 0);
+        assert_eq!(loaded_messages.len(), 1);
     }
 }

@@ -1,19 +1,18 @@
 use crate::bytes_serializable::BytesSerializable;
 use crate::error::SystemError;
 use bytes::BufMut;
-use std::str::from_utf8;
 
 #[derive(Debug, Default, PartialEq)]
 pub struct AppendMessage {
-    pub message: String,
+    pub payload: Vec<u8>,
 }
 
 impl BytesSerializable for AppendMessage {
     fn as_bytes(&self) -> Vec<u8> {
-        let data_len = self.message.len();
-        let mut bytes = Vec::with_capacity(4 + data_len);
-        bytes.put_u32(data_len as u32);
-        bytes.extend(self.message.as_bytes());
+        let payload_length = self.payload.len();
+        let mut bytes = Vec::with_capacity(4 + payload_length);
+        bytes.put_u32_le(payload_length as u32);
+        bytes.extend(&self.payload);
         bytes
     }
 
@@ -22,13 +21,9 @@ impl BytesSerializable for AppendMessage {
             return Err(SystemError::InvalidCommand);
         }
 
-        let message_len = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
-        let message =
-            from_utf8(&bytes[4..=message_len]).map_err(|_| SystemError::InvalidCommand)?;
-
-        let command = AppendMessage {
-            message: message.to_string(),
-        };
+        let payload_length = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
+        let payload = bytes[4..payload_length + 4].to_vec();
+        let command = AppendMessage { payload };
         Ok(command)
     }
 }

@@ -1,7 +1,7 @@
 use crate::clusters::node::Node;
 use crate::configs::config::ClusterConfig;
 use crate::error::SystemError;
-use crate::streaming::data_appender::DataAppender;
+use crate::streaming::streamer::Streamer;
 use futures::lock::Mutex;
 use std::rc::Rc;
 use tracing::{error, info};
@@ -16,7 +16,7 @@ pub enum ClusterState {
 pub struct Cluster {
     pub state: Mutex<ClusterState>,
     pub nodes: Vec<Rc<ClusterNode>>,
-    pub data_appender: Mutex<DataAppender>,
+    pub streamer: Mutex<Streamer>,
 }
 
 #[derive(Debug)]
@@ -36,7 +36,7 @@ impl Cluster {
         self_name: &str,
         self_address: &str,
         config: &ClusterConfig,
-        data_appender: DataAppender,
+        streamer: Streamer,
     ) -> Result<Self, SystemError> {
         let mut nodes = Vec::new();
         nodes.push(Rc::new(ClusterNode {
@@ -54,7 +54,7 @@ impl Cluster {
         Ok(Self {
             state: Mutex::new(ClusterState::Uninitialized),
             nodes,
-            data_appender: Mutex::new(data_appender),
+            streamer: Mutex::new(streamer),
         })
     }
 
