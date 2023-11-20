@@ -79,7 +79,8 @@ async fn handle_command(
                 append_message.payload.len()
             );
             let mut streamer = cluster.streamer.lock().await;
-            streamer.append_message(append_message.payload).await?;
+            let payloads = vec![append_message.payload];
+            streamer.append_messages(payloads).await?;
             info!("Sent an append data response.");
         }
     }

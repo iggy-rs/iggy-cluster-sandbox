@@ -57,35 +57,38 @@ impl Streamer {
         );
     }
 
-    pub async fn append_message(&mut self, payload: Vec<u8>) -> Result<(), SystemError> {
-        if !self.messages.is_empty() {
-            self.current_offset += 1;
-        }
+    pub async fn append_messages(&mut self, payloads: Vec<Vec<u8>>) -> Result<(), SystemError> {
+        for payload in payloads {
+            if !self.messages.is_empty() {
+                self.current_offset += 1;
+            }
 
-        let message = Message::new(self.current_offset, payload);
-        let size = message.get_size();
-        let bytes = message.as_bytes();
-        self.messages.push(message);
-        let file = file::append(&self.stream_path)
-            .await
-            .unwrap_or_else(|_| panic!("Failed to open stream file: {}", self.stream_path));
-        let result = file.write_all_at(bytes, self.current_position).await;
-        if result.0.is_err() {
-            error!(
-                "Failed to append message to stream file: {}",
-                self.stream_path
+            let message = Message::new(self.current_offset, payload);
+            let size = message.get_size();
+            let bytes = message.as_bytes();
+            self.messages.push(message);
+            let file = file::append(&self.stream_path)
+                .await
+                .unwrap_or_else(|_| panic!("Failed to open stream file: {}", self.stream_path));
+            let result = file.write_all_at(bytes, self.current_position).await;
+            if result.0.is_err() {
+                error!(
+                    "Failed to append message to stream file: {}",
+                    self.stream_path
+                );
+                return Err(SystemError::CannotAppendMessage);
+            }
+            self.current_position += size as u64;
+            if file.close().await.is_err() {
+                error!("Failed to close stream file: {}", self.stream_path);
+            }
+
+            info!(
+                "Appended message to stream file: {} at offset: {}, position: {}",
+                self.stream_path, self.current_offset, self.current_position
             );
-            return Err(SystemError::CannotAppendMessage);
-        }
-        self.current_position += size as u64;
-        if file.close().await.is_err() {
-            error!("Failed to close stream file: {}", self.stream_path);
         }
 
-        info!(
-            "Appended message to stream file: {} at offset: {}, position: {}",
-            self.stream_path, self.current_offset, self.current_position
-        );
         Ok(())
     }
 
@@ -167,11 +170,25 @@ mod tests {
         let test = Test {};
         let mut streamer = Streamer::new(&test.streams_path());
         streamer.init().await;
-        let message1 = b"test".to_vec();
-        let result = streamer.append_message(message1).await;
+        let message1 = b"message-1".to_vec();
+        let message2 = b"message-2".to_vec();
+        let message3 = b"message-3".to_vec();
+        let payloads = vec![message1, message2, message3];
+        let result = streamer.append_messages(payloads).await;
         assert!(result.is_ok());
         let (loaded_messages, position) = streamer.load_messages().await;
         assert!(position > 0);
-        assert_eq!(loaded_messages.len(), 1);
+        assert_eq!(loaded_messages.len(), 3);
+        let loaded_message1 = &loaded_messages[0];
+        let loaded_message2 = &loaded_messages[1];
+        let loaded_message3 = &loaded_messages[2];
+        assert_message(loaded_message1, 0, b"message-1");
+        assert_message(loaded_message2, 1, b"message-2");
+        assert_message(loaded_message3, 2, b"message-3");
+    }
+
+    fn assert_message(message: &Message, offset: u64, payload: &[u8]) {
+        assert_eq!(message.offset, offset);
+        assert_eq!(message.payload, payload);
     }
 }
