@@ -1,5 +1,5 @@
 use crate::bytes_serializable::BytesSerializable;
-use crate::commands::append_message::AppendMessage;
+use crate::commands::append_messages::AppendMessages;
 use crate::commands::hello::Hello;
 use crate::commands::ping::Ping;
 use crate::error::SystemError;
@@ -10,11 +10,11 @@ const HELLO_CODE: u32 = 1;
 const PING_CODE: u32 = 2;
 const APPEND_DATA_CODE: u32 = 3;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum Command {
     Hello(Hello),
     Ping(Ping),
-    AppendData(AppendMessage),
+    AppendMessages(AppendMessages),
 }
 
 impl Command {
@@ -22,7 +22,7 @@ impl Command {
         match self {
             Command::Hello(command) => to_bytes(HELLO_CODE, command),
             Command::Ping(command) => to_bytes(PING_CODE, command),
-            Command::AppendData(command) => to_bytes(APPEND_DATA_CODE, command),
+            Command::AppendMessages(command) => to_bytes(APPEND_DATA_CODE, command),
         }
     }
 
@@ -33,7 +33,7 @@ impl Command {
         match code {
             HELLO_CODE => Ok(Command::Hello(Hello::from_bytes(bytes)?)),
             PING_CODE => Ok(Command::Ping(Ping::from_bytes(bytes)?)),
-            APPEND_DATA_CODE => Ok(Command::AppendData(AppendMessage::from_bytes(bytes)?)),
+            APPEND_DATA_CODE => Ok(Command::AppendMessages(AppendMessages::from_bytes(bytes)?)),
             _ => Err(SystemError::InvalidCommandCode(code)),
         }
     }
@@ -53,7 +53,9 @@ impl Display for Command {
         match self {
             Command::Hello(hello) => write!(f, "Hello from: {}", hello.name),
             Command::Ping(_) => write!(f, "Ping"),
-            Command::AppendData(append_data) => write!(f, "Append data: {:?}", append_data.payload),
+            Command::AppendMessages(append_data) => {
+                write!(f, "Append messages: {:?}", append_data.messages)
+            }
         }
     }
 }

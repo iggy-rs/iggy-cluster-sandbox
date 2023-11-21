@@ -1,4 +1,5 @@
 use crate::bytes_serializable::BytesSerializable;
+use crate::commands::append_messages::AppendMessages;
 use crate::error::SystemError;
 use crate::streaming::file;
 use crate::streaming::messages::Message;
@@ -57,13 +58,20 @@ impl Streamer {
         );
     }
 
-    pub async fn append_messages(&mut self, payloads: Vec<Vec<u8>>) -> Result<(), SystemError> {
-        for payload in payloads {
+    pub async fn append_messages(
+        &mut self,
+        append_messages: AppendMessages,
+    ) -> Result<(), SystemError> {
+        for message_to_append in append_messages.messages {
             if !self.messages.is_empty() {
                 self.current_offset += 1;
             }
 
-            let message = Message::new(self.current_offset, payload);
+            let message = Message::new(
+                self.current_offset,
+                message_to_append.id,
+                message_to_append.payload,
+            );
             let size = message.get_size();
             let bytes = message.as_bytes();
             self.messages.push(message);
@@ -108,8 +116,17 @@ impl Streamer {
 
             let offset = u64::from_le_bytes(buffer.try_into().unwrap());
             position += 8;
-            let payload_length_buffer = vec![0u8; 4];
-            let payload_length = file.read_exact_at(payload_length_buffer, position).await;
+
+            let buffer = vec![0u8; 8];
+            let (result, buffer) = file.read_exact_at(buffer, position).await;
+            if result.is_err() {
+                break;
+            }
+            let id = u64::from_le_bytes(buffer.try_into().unwrap());
+            position += 8;
+
+            let buffer = vec![0u8; 4];
+            let payload_length = file.read_exact_at(buffer, position).await;
             if payload_length.0.is_err() {
                 error!("Failed to read payload length");
                 break;
@@ -117,15 +134,15 @@ impl Streamer {
 
             let payload_length = u32::from_le_bytes(payload_length.1.try_into().unwrap());
             position += 4;
-            let payload_buffer = vec![0; payload_length as usize];
-            let payload = file.read_exact_at(payload_buffer, position).await;
+            let buffer = vec![0; payload_length as usize];
+            let payload = file.read_exact_at(buffer, position).await;
             if payload.0.is_err() {
                 error!("Failed to read payload");
                 break;
             }
 
             position += payload_length as u64;
-            let message = Message::new(offset, payload.1);
+            let message = Message::new(offset, id, payload.1);
             messages.push(message);
         }
 
@@ -170,11 +187,23 @@ mod tests {
         let test = Test {};
         let mut streamer = Streamer::new(&test.streams_path());
         streamer.init().await;
-        let message1 = b"message-1".to_vec();
-        let message2 = b"message-2".to_vec();
-        let message3 = b"message-3".to_vec();
-        let payloads = vec![message1, message2, message3];
-        let result = streamer.append_messages(payloads).await;
+        let append_messages = AppendMessages {
+            messages: vec![
+                crate::commands::append_messages::Message {
+                    id: 1,
+                    payload: b"message-1".to_vec(),
+                },
+                crate::commands::append_messages::Message {
+                    id: 2,
+                    payload: b"message-2".to_vec(),
+                },
+                crate::commands::append_messages::Message {
+                    id: 3,
+                    payload: b"message-3".to_vec(),
+                },
+            ],
+        };
+        let result = streamer.append_messages(append_messages).await;
         assert!(result.is_ok());
         let (loaded_messages, position) = streamer.load_messages().await;
         assert!(position > 0);
@@ -182,13 +211,14 @@ mod tests {
         let loaded_message1 = &loaded_messages[0];
         let loaded_message2 = &loaded_messages[1];
         let loaded_message3 = &loaded_messages[2];
-        assert_message(loaded_message1, 0, b"message-1");
-        assert_message(loaded_message2, 1, b"message-2");
-        assert_message(loaded_message3, 2, b"message-3");
+        assert_message(loaded_message1, 0, 1, b"message-1");
+        assert_message(loaded_message2, 1, 2, b"message-2");
+        assert_message(loaded_message3, 2, 3, b"message-3");
     }
 
-    fn assert_message(message: &Message, offset: u64, payload: &[u8]) {
+    fn assert_message(message: &Message, offset: u64, id: u64, payload: &[u8]) {
         assert_eq!(message.offset, offset);
+        assert_eq!(message.id, id);
         assert_eq!(message.payload, payload);
     }
 }

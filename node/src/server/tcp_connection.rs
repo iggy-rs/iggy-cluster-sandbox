@@ -73,14 +73,10 @@ async fn handle_command(
             handler.send_empty_ok_response().await?;
             info!("Sent a ping response.");
         }
-        Command::AppendData(append_message) => {
-            info!(
-                "Received an append data command, data length: {}.",
-                append_message.payload.len()
-            );
+        Command::AppendMessages(append_messages) => {
+            info!("Received an append messages command");
             let mut streamer = cluster.streamer.lock().await;
-            let payloads = vec![append_message.payload];
-            streamer.append_messages(payloads).await?;
+            streamer.append_messages(append_messages).await?;
             info!("Sent an append data response.");
         }
     }
