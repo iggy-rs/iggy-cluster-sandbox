@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.70"
-#async-trait = "0.1.74"
 bytes = "1.4.0"
 chrono = "0.4.30"
 clap = { version = "4.1.11", features = ["derive"] }
@@ -21,6 +20,7 @@ tracing = { version = "0.1.37" }
 tracing-subscriber = { version = "0.3.17", features = ["fmt"] }
 tracing-appender = "0.2.2"
 monoio = { version = "0.2.0", features = ["async-cancel", "sync", "signal", "tracing", "zero-copy", "bytes", "iouring", "legacy", "macros", "utils"] }
+sdk = { path = "../sdk" }
 
 [[bin]]
 name = "iggy-node"

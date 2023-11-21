@@ -1,6 +1,6 @@
 use crate::clusters::node_client::{ClientState, NodeClient};
-use crate::commands::command::Command;
-use crate::error::SystemError;
+use sdk::commands::command::Command;
+use sdk::error::SystemError;
 use tracing::{error, info, warn};
 
 impl NodeClient {

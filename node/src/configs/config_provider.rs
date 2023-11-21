@@ -1,10 +1,10 @@
 use crate::configs::config::SystemConfig;
-use crate::error::SystemError;
 use figment::{
     providers::{Format, Toml},
     value::{Dict, Map as FigmentMap, Tag, Value as FigmentValue},
     Figment, Metadata, Profile, Provider,
 };
+use sdk::error::SystemError;
 use std::{env, path::Path};
 use toml::{map::Map, Value as TomlValue};
 use tracing::info;

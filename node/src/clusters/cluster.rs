@@ -1,8 +1,8 @@
 use crate::clusters::node::Node;
 use crate::configs::config::ClusterConfig;
-use crate::error::SystemError;
 use crate::streaming::streamer::Streamer;
 use futures::lock::Mutex;
+use sdk::error::SystemError;
 use std::rc::Rc;
 use tracing::{error, info};
 

@@ -1,6 +1,6 @@
 use crate::clusters::node_client::{ClientState, NodeClient};
-use crate::error::SystemError;
 use monoio::time::sleep;
+use sdk::error::SystemError;
 use std::time::Duration;
 use tracing::{error, info};
 

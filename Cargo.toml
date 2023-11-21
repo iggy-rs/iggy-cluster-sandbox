@@ -4,5 +4,6 @@ lto = true
 [workspace]
 resolver = "2"
 members = [
-    "node"
+    "node",
+    "sdk"
 ]

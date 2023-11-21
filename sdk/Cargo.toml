@@ -1,0 +1,12 @@
+[package]
+name = "sdk"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.70"
+bytes = "1.4.0"
+chrono = "0.4.30"
+futures = "0.3.28"
+serde = { version = "1.0.159", features = ["derive", "rc"] }
+thiserror = "1.0.40"

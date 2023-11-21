@@ -1,8 +1,8 @@
-use crate::bytes_serializable::BytesSerializable;
-use crate::commands::append_messages::AppendMessages;
-use crate::error::SystemError;
 use crate::streaming::file;
 use crate::streaming::messages::Message;
+use sdk::bytes_serializable::BytesSerializable;
+use sdk::commands::append_messages::AppendMessages;
+use sdk::error::SystemError;
 use std::fmt::{Display, Formatter};
 use std::fs::create_dir_all;
 use std::path::Path;
@@ -189,15 +189,15 @@ mod tests {
         streamer.init().await;
         let append_messages = AppendMessages {
             messages: vec![
-                crate::commands::append_messages::Message {
+                sdk::commands::append_messages::Message {
                     id: 1,
                     payload: b"message-1".to_vec(),
                 },
-                crate::commands::append_messages::Message {
+                sdk::commands::append_messages::Message {
                     id: 2,
                     payload: b"message-2".to_vec(),
                 },
-                crate::commands::append_messages::Message {
+                sdk::commands::append_messages::Message {
                     id: 3,
                     payload: b"message-3".to_vec(),
                 },
