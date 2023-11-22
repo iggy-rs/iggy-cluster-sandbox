@@ -19,8 +19,8 @@ async fn main() -> Result<(), SystemError> {
     tracing_subscriber::fmt::init();
     let standard_font = FIGfont::standard().unwrap();
     let figure = standard_font.convert("Iggy Node");
-    let config_provider = FileConfigProvider::default();
     println!("{}", figure.unwrap());
+    let config_provider = FileConfigProvider::default();
     let system_config = config_provider.load_config().await?;
     println!("{system_config}");
     let mut streamer = Streamer::new(&system_config.stream.path);
