@@ -1,10 +1,10 @@
-use crate::clusters::cluster::Cluster;
+use crate::clusters::cluster::{Cluster, ClusterState};
 use crate::connection::tcp_handler::TcpHandler;
 use sdk::commands::command::Command;
 use sdk::error::SystemError;
 use std::io::ErrorKind;
 use std::rc::Rc;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 const INITIAL_BYTES_LENGTH: usize = 8;
 
@@ -74,10 +74,19 @@ async fn handle_command(
             info!("Sent a ping response.");
         }
         Command::AppendMessages(append_messages) => {
+            if cluster.get_state().await != ClusterState::Healthy {
+                warn!("Cluster is not healthy, unable to append messages.");
+                handler
+                    .send_error_response(SystemError::UnhealthyCluster)
+                    .await?;
+                return Ok(());
+            }
+
             info!("Received an append messages command");
             let mut streamer = cluster.streamer.lock().await;
             streamer.append_messages(append_messages).await?;
-            info!("Sent an append data response.");
+            handler.send_empty_ok_response().await?;
+            info!("Sent an append messages response.");
         }
     }
     info!("Handled a TCP request.");

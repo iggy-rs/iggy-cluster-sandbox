@@ -1,4 +1,5 @@
 use crate::bytes_serializable::BytesSerializable;
+use crate::commands::command::Command;
 use crate::error::SystemError;
 use bytes::BufMut;
 
@@ -11,6 +12,12 @@ pub struct AppendMessages {
 pub struct Message {
     pub id: u64,
     pub payload: Vec<u8>,
+}
+
+impl AppendMessages {
+    pub fn new_command(messages: Vec<Message>) -> Command {
+        Command::AppendMessages(AppendMessages { messages })
+    }
 }
 
 impl BytesSerializable for Message {

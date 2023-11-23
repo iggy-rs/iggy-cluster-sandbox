@@ -6,7 +6,7 @@ use sdk::error::SystemError;
 use std::rc::Rc;
 use tracing::{error, info};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum ClusterState {
     Uninitialized,
     Healthy,
@@ -78,21 +78,36 @@ impl Cluster {
 
     pub async fn connect(&self) -> Result<(), SystemError> {
         info!("Connecting all cluster nodes...");
-        for cluster_node in &self.nodes {
-            let cluster_node = cluster_node.clone();
-            monoio::spawn(async move {
-                Self::connect_to_node(&cluster_node)
-                    .await
-                    .unwrap_or_else(|error| {
-                        error!(
-                            "Failed to connect to cluster node: {}, error: {}",
-                            cluster_node.node.name, error
-                        );
-                    });
-            });
+        let mut connections = 0;
+        let expected_connections = (self.nodes.len() / 2) + 1;
+        for node in self.nodes.clone() {
+            if Self::init_node_connection(node).await.is_ok() {
+                connections += 1;
+            }
         }
+
+        if connections < expected_connections {
+            error!(
+                "Not enough cluster nodes connected. Expected: {}, actual: {}",
+                expected_connections, connections
+            );
+            return Err(SystemError::UnhealthyCluster);
+        }
+
         self.set_state(ClusterState::Healthy).await;
         info!("All cluster nodes connected.");
+        Ok(())
+    }
+
+    async fn init_node_connection(cluster_node: Rc<ClusterNode>) -> Result<(), SystemError> {
+        if let Err(error) = Self::connect_to_node(&cluster_node).await {
+            error!(
+                "Failed to connect to cluster node: {}, error: {}",
+                cluster_node.node.name, error
+            );
+            return Err(error);
+        }
+
         Ok(())
     }
 
@@ -193,6 +208,10 @@ impl Cluster {
         }
 
         false
+    }
+
+    pub async fn get_state(&self) -> ClusterState {
+        *self.state.lock().await
     }
 
     async fn set_state(&self, state: ClusterState) {

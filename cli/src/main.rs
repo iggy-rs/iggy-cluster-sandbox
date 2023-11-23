@@ -1,12 +1,12 @@
+mod command_parser;
+
 use figlet_rs::FIGfont;
-use monoio::io::AsyncWriteRentExt;
+use monoio::io::{AsyncReadRent, AsyncWriteRentExt};
 use monoio::net::TcpStream;
 use monoio::time::sleep;
-use monoio::utils::CtrlC;
-use sdk::commands::ping::Ping;
 use sdk::error::SystemError;
-use std::env;
 use std::time::Duration;
+use std::{env, io};
 use tracing::{error, info};
 
 #[monoio::main(timer_enabled = true)]
@@ -30,16 +30,48 @@ async fn main() -> Result<(), SystemError> {
         sleep(Duration::from_millis(reconnection_interval)).await;
         continue;
     }
-    info!("Sending ping command to Iggy node...");
-    let ping = Ping::new_command();
-    let (result, _) = tcp_stream.write_all(ping.as_bytes()).await;
-    if result.is_err() {
-        error!("Failed to send ping command to Iggy node.");
-        return Err(SystemError::CannotConnectToClusterNode(address.to_string()));
+
+    let stdin = io::stdin();
+    let mut user_input = String::new();
+    loop {
+        info!("Enter command to send to the node: ");
+        user_input.clear();
+        stdin.read_line(&mut user_input)?;
+        if user_input.contains('\n') {
+            user_input.pop();
+        }
+        if user_input.contains('\r') {
+            user_input.pop();
+        }
+
+        let command = command_parser::parse(&user_input);
+        if command.is_none() {
+            error!("Invalid command: {}", user_input);
+            continue;
+        }
+
+        let command = command.unwrap();
+        info!("Sending command to Iggy node...");
+        let (result, _) = tcp_stream.write_all(command.as_bytes()).await;
+        if result.is_err() {
+            error!("Failed to send command to Iggy node.");
+            continue;
+        }
+        info!("Command sent to Iggy node.");
+
+        let buffer = vec![0u8; 8];
+        let (read_bytes, buffer) = tcp_stream.read(buffer).await;
+        if read_bytes.is_err() {
+            error!("Failed to read a response: {:?}", read_bytes.err());
+            continue;
+        }
+
+        let status = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
+        let payload_length = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
+        if status == 0 {
+            info!("Received OK response from Iggy node, payload length: {payload_length}.",);
+            continue;
+        }
+        error!("Received error response from Iggy node, status: {status}.",);
     }
-    info!("Received pong response from Iggy node.");
-    info!("Press CTRL+C shutdown Iggy CLI...");
-    CtrlC::new().unwrap().await;
-    info!("Iggy CLI has shutdown successfully.");
-    Ok(())
 }

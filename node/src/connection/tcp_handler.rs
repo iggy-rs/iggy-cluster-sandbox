@@ -35,6 +35,14 @@ impl TcpHandler {
         self.send(command.as_bytes(), true).await
     }
 
+    pub async fn send_error_response(&mut self, error: SystemError) -> Result<(), SystemError> {
+        let mut data = Vec::with_capacity(8);
+        data.put_u32_le(error.as_code());
+        data.put_u32_le(0);
+        self.send(data, false).await?;
+        Ok(())
+    }
+
     pub async fn send_empty_ok_response(&mut self) -> Result<(), SystemError> {
         self.send_ok_response(&[]).await
     }

@@ -17,6 +17,7 @@ pub struct Streamer {
     messages: Vec<Message>,
     current_offset: u64,
     current_position: u64,
+    current_id: u64,
 }
 
 impl Streamer {
@@ -27,6 +28,7 @@ impl Streamer {
             messages: Vec::new(),
             current_offset: 0,
             current_position: 0,
+            current_id: 0,
         }
     }
 
@@ -48,6 +50,7 @@ impl Streamer {
                 self.messages = messages;
                 self.current_position = position;
                 self.current_offset = self.messages.len() as u64 - 1;
+                self.current_id = self.messages.iter().max_by_key(|m| m.id).unwrap().id;
             }
         }
 
@@ -67,9 +70,15 @@ impl Streamer {
                 self.current_offset += 1;
             }
 
+            if message_to_append.id == 0 {
+                self.current_id += 1;
+            } else {
+                self.current_id = message_to_append.id;
+            }
+
             let message = Message::new(
                 self.current_offset,
-                message_to_append.id,
+                self.current_id,
                 message_to_append.payload,
             );
             let size = message.get_size();
