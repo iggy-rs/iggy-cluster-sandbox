@@ -1,6 +1,9 @@
 [stream]
 path = "local_data/node3/streams"
 
+[server]
+address = "0.0.0.0:8121"
+
 [node]
 name = "node3"
 address = "0.0.0.0:8120"

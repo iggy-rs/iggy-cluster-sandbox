@@ -4,6 +4,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SystemError {
+    #[error("Unhealthy cluster")]
+    UnhealthyCluster,
     #[error("IO error")]
     IoError(#[from] io::Error),
     #[error("Try from slice error")]
@@ -32,28 +34,35 @@ pub enum SystemError {
     InvalidNode(String),
     #[error("Cannot append message")]
     CannotAppendMessage,
-    #[error("Unhealthy cluster")]
-    UnhealthyCluster,
+    #[error("Cannot send command")]
+    CannotSendCommand,
+    #[error("Cannot read response")]
+    CannotReadResponse,
+    #[error("Received error response with status: {0}")]
+    ErrorResponse(u32),
 }
 
 impl SystemError {
     pub fn as_code(&self) -> u32 {
         match self {
-            SystemError::IoError(_) => 1,
-            SystemError::TryFromSliceError(_) => 2,
-            SystemError::ConfigNotFound(_) => 3,
-            SystemError::ConfigInvalid(_) => 4,
-            SystemError::CannotConnectToClusterNode(_) => 5,
-            SystemError::InvalidClusterNodeAddress(_) => 6,
-            SystemError::InvalidCommandCode(_) => 7,
-            SystemError::InvalidRequest => 8,
-            SystemError::InvalidResponse => 9,
-            SystemError::ClientDisconnected => 10,
-            SystemError::SendRequestFailed => 11,
-            SystemError::InvalidCommand => 12,
-            SystemError::InvalidNode(_) => 13,
-            SystemError::CannotAppendMessage => 14,
-            SystemError::UnhealthyCluster => 100,
+            SystemError::UnhealthyCluster => 1,
+            SystemError::IoError(_) => 2,
+            SystemError::TryFromSliceError(_) => 3,
+            SystemError::ConfigNotFound(_) => 4,
+            SystemError::ConfigInvalid(_) => 5,
+            SystemError::CannotConnectToClusterNode(_) => 6,
+            SystemError::InvalidClusterNodeAddress(_) => 7,
+            SystemError::InvalidCommandCode(_) => 8,
+            SystemError::InvalidRequest => 9,
+            SystemError::InvalidResponse => 10,
+            SystemError::ClientDisconnected => 11,
+            SystemError::SendRequestFailed => 12,
+            SystemError::InvalidCommand => 13,
+            SystemError::InvalidNode(_) => 14,
+            SystemError::CannotAppendMessage => 15,
+            SystemError::CannotSendCommand => 16,
+            SystemError::CannotReadResponse => 17,
+            SystemError::ErrorResponse(_) => 18,
         }
     }
 }

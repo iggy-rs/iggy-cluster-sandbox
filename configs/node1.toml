@@ -1,6 +1,9 @@
 [stream]
 path = "local_data/mode1/streams"
 
+[server]
+address = "0.0.0.0:8101"
+
 [node]
 name = "node1"
 address = "0.0.0.0:8100"

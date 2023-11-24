@@ -1,6 +1,6 @@
 use crate::clusters::cluster::Cluster;
 use crate::configs::config_provider::FileConfigProvider;
-use crate::server::tcp_server;
+use crate::server::cluster_internal_server;
 use crate::streaming::streamer::Streamer;
 use figlet_rs::FIGfont;
 use monoio::utils::CtrlC;
@@ -32,7 +32,7 @@ async fn main() -> Result<(), SystemError> {
         streamer,
     )?;
     let cluster = Rc::new(cluster);
-    tcp_server::start(&system_config.node.address, cluster.clone());
+    cluster_internal_server::start(&system_config.node.address, cluster.clone());
     cluster.connect().await?;
     cluster.start_healthcheck()?;
     info!("Press CTRL+C shutdown Iggy node...");

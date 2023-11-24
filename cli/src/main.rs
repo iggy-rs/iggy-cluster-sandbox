@@ -1,8 +1,7 @@
+mod client;
 mod command_parser;
 
 use figlet_rs::FIGfont;
-use monoio::io::{AsyncReadRent, AsyncWriteRentExt};
-use monoio::net::TcpStream;
 use monoio::time::sleep;
 use sdk::error::SystemError;
 use std::time::Duration;
@@ -17,11 +16,11 @@ async fn main() -> Result<(), SystemError> {
     println!("{}", figure.unwrap());
     let reconnection_interval = 1000;
     let address = env::var("IGGY_NODE_ADDRESS").unwrap_or("127.0.0.1:8100".to_string());
-    let mut tcp_stream;
+    let mut client;
     loop {
         info!("Connecting to Iggy node: {address}...");
-        if let Ok(connection) = TcpStream::connect(&address).await {
-            tcp_stream = connection;
+        if let Ok(connected_client) = client::Client::init(&address).await {
+            client = connected_client;
             info!("Connected to Iggy node: {address}.");
             break;
         }
@@ -51,27 +50,8 @@ async fn main() -> Result<(), SystemError> {
         }
 
         let command = command.unwrap();
-        info!("Sending command to Iggy node...");
-        let (result, _) = tcp_stream.write_all(command.as_bytes()).await;
-        if result.is_err() {
-            error!("Failed to send command to Iggy node.");
-            continue;
+        if client.send(command).await.is_err() {
+            error!("There was an error sending the command to the node.");
         }
-        info!("Command sent to Iggy node.");
-
-        let buffer = vec![0u8; 8];
-        let (read_bytes, buffer) = tcp_stream.read(buffer).await;
-        if read_bytes.is_err() {
-            error!("Failed to read a response: {:?}", read_bytes.err());
-            continue;
-        }
-
-        let status = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
-        let payload_length = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
-        if status == 0 {
-            info!("Received OK response from Iggy node, payload length: {payload_length}.",);
-            continue;
-        }
-        error!("Received error response from Iggy node, status: {status}.",);
     }
 }
