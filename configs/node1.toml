@@ -1,5 +1,5 @@
 [stream]
-path = "local_data/mode1/streams"
+path = "local_data/node1/streams"
 
 [server]
 address = "0.0.0.0:8101"

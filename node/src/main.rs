@@ -1,6 +1,6 @@
 use crate::clusters::cluster::Cluster;
 use crate::configs::config_provider::FileConfigProvider;
-use crate::server::cluster_internal_server;
+use crate::server::{public_server, sync_server};
 use crate::streaming::streamer::Streamer;
 use figlet_rs::FIGfont;
 use monoio::utils::CtrlC;
@@ -11,6 +11,7 @@ use tracing::info;
 mod clusters;
 mod configs;
 mod connection;
+mod handlers;
 mod server;
 mod streaming;
 
@@ -32,7 +33,8 @@ async fn main() -> Result<(), SystemError> {
         streamer,
     )?;
     let cluster = Rc::new(cluster);
-    cluster_internal_server::start(&system_config.node.address, cluster.clone());
+    sync_server::start(&system_config.node.address, cluster.clone());
+    public_server::start(&system_config.server.address, cluster.clone());
     cluster.connect().await?;
     cluster.start_healthcheck()?;
     info!("Press CTRL+C shutdown Iggy node...");

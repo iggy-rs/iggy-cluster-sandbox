@@ -1,10 +1,13 @@
-use crate::clusters::cluster::{Cluster, ClusterState};
+use crate::clusters::cluster::Cluster;
 use crate::connection::tcp_handler::TcpHandler;
+use crate::handlers::{
+    append_messages_handler, hello_handler, ping_handler, sync_messages_handler,
+};
 use sdk::commands::command::Command;
 use sdk::error::SystemError;
 use std::io::ErrorKind;
 use std::rc::Rc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 const INITIAL_BYTES_LENGTH: usize = 8;
 
@@ -29,7 +32,7 @@ pub(crate) async fn tcp_listener(
         debug!("Received a TCP request, command code: {code}, payload length: {length}");
         if length == 0 {
             let command = Command::from_bytes(code, &[])?;
-            if handle_command(handler, command, &cluster).await.is_err() {
+            if handle_command(handler, &command, &cluster).await.is_err() {
                 error!("Unable to handle the TCP request.");
             }
             continue;
@@ -38,7 +41,7 @@ pub(crate) async fn tcp_listener(
         let mut payload_buffer = vec![0u8; length as usize];
         (_, payload_buffer) = handler.read(payload_buffer).await?;
         let command = Command::from_bytes(code, &payload_buffer)?;
-        if handle_command(handler, command, &cluster).await.is_err() {
+        if handle_command(handler, &command, &cluster).await.is_err() {
             error!("Unable to handle the TCP request.");
         }
     }
@@ -46,50 +49,27 @@ pub(crate) async fn tcp_listener(
 
 async fn handle_command(
     handler: &mut TcpHandler,
-    command: Command,
+    command: &Command,
     cluster: &Rc<Cluster>,
 ) -> Result<(), SystemError> {
-    info!("Handling a TCP request...");
+    let command_name = command.get_name();
+    let cluster = cluster.clone();
+    info!("Handling a TCP request, command: {command_name}...");
     match command {
-        Command::Hello(hello) => {
-            info!("Received a hello command, name: {}.", hello.name);
-            handler.send_empty_ok_response().await?;
-            info!("Sent a hello response.");
-            if cluster.is_connected_to(&hello.name).await {
-                info!("The node: {} is already connected.", hello.name);
-                return Ok(());
-            }
-
-            info!("Connecting to the disconnected node: {}...", hello.name);
-            cluster.connect_to(&hello.name).await?;
-            cluster.start_healthcheck_for(&hello.name)?;
-            info!(
-                "Connected to the previously disconnected node: {}.",
-                hello.name
-            );
+        Command::Hello(command) => {
+            hello_handler::handle(handler, command, cluster).await?;
         }
         Command::Ping(_) => {
-            info!("Received a ping command.");
-            handler.send_empty_ok_response().await?;
-            info!("Sent a ping response.");
+            ping_handler::handle(handler).await?;
         }
-        Command::AppendMessages(append_messages) => {
-            if cluster.get_state().await != ClusterState::Healthy {
-                warn!("Cluster is not healthy, unable to append messages.");
-                handler
-                    .send_error_response(SystemError::UnhealthyCluster)
-                    .await?;
-                return Ok(());
-            }
-
-            info!("Received an append messages command");
-            let mut streamer = cluster.streamer.lock().await;
-            streamer.append_messages(append_messages).await?;
-            handler.send_empty_ok_response().await?;
-            info!("Sent an append messages response.");
+        Command::AppendMessages(command) => {
+            append_messages_handler::handle(handler, command, cluster).await?;
+        }
+        Command::SyncMessages(command) => {
+            sync_messages_handler::handle(handler, command, cluster).await?;
         }
     }
-    info!("Handled a TCP request.");
+    info!("Handled a TCP request, command: {command_name}.");
     Ok(())
 }
 

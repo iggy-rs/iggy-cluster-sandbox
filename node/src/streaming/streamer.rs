@@ -1,5 +1,6 @@
 use crate::streaming::file;
 use crate::streaming::messages::Message;
+use bytes::Bytes;
 use sdk::bytes_serializable::BytesSerializable;
 use sdk::commands::append_messages::AppendMessages;
 use sdk::error::SystemError;
@@ -63,9 +64,9 @@ impl Streamer {
 
     pub async fn append_messages(
         &mut self,
-        append_messages: AppendMessages,
+        append_messages: &AppendMessages,
     ) -> Result<(), SystemError> {
-        for message_to_append in append_messages.messages {
+        for message_to_append in &append_messages.messages {
             if !self.messages.is_empty() {
                 self.current_offset += 1;
             }
@@ -79,7 +80,7 @@ impl Streamer {
             let message = Message::new(
                 self.current_offset,
                 self.current_id,
-                message_to_append.payload,
+                message_to_append.payload.clone(),
             );
             let size = message.get_size();
             let bytes = message.as_bytes();
@@ -151,7 +152,7 @@ impl Streamer {
             }
 
             position += payload_length as u64;
-            let message = Message::new(offset, id, payload.1);
+            let message = Message::new(offset, id, Bytes::from(payload.1));
             messages.push(message);
         }
 
@@ -173,6 +174,7 @@ impl Display for Streamer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bytes::Bytes;
     use std::fs::remove_dir_all;
 
     const BASE_DIR: &str = "local_data";
@@ -200,19 +202,19 @@ mod tests {
             messages: vec![
                 sdk::commands::append_messages::Message {
                     id: 1,
-                    payload: b"message-1".to_vec(),
+                    payload: Bytes::from("message-1"),
                 },
                 sdk::commands::append_messages::Message {
                     id: 2,
-                    payload: b"message-2".to_vec(),
+                    payload: Bytes::from("message-2"),
                 },
                 sdk::commands::append_messages::Message {
                     id: 3,
-                    payload: b"message-3".to_vec(),
+                    payload: Bytes::from("message-3"),
                 },
             ],
         };
-        let result = streamer.append_messages(append_messages).await;
+        let result = streamer.append_messages(&append_messages).await;
         assert!(result.is_ok());
         let (loaded_messages, position) = streamer.load_messages().await;
         assert!(position > 0);

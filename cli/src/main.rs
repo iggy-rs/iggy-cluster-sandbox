@@ -15,7 +15,7 @@ async fn main() -> Result<(), SystemError> {
     let figure = standard_font.convert("Iggy CLI");
     println!("{}", figure.unwrap());
     let reconnection_interval = 1000;
-    let address = env::var("IGGY_NODE_ADDRESS").unwrap_or("127.0.0.1:8100".to_string());
+    let address = env::var("IGGY_NODE_ADDRESS").unwrap_or("127.0.0.1:8101".to_string());
     let mut client;
     loop {
         info!("Connecting to Iggy node: {address}...");

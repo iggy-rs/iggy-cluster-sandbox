@@ -1,4 +1,4 @@
-use bytes::BufMut;
+use bytes::{BufMut, Bytes};
 use sdk::bytes_serializable::BytesSerializable;
 use sdk::error::SystemError;
 
@@ -6,11 +6,11 @@ use sdk::error::SystemError;
 pub struct Message {
     pub offset: u64,
     pub id: u64,
-    pub payload: Vec<u8>,
+    pub payload: Bytes,
 }
 
 impl Message {
-    pub fn new(offset: u64, id: u64, payload: Vec<u8>) -> Self {
+    pub fn new(offset: u64, id: u64, payload: Bytes) -> Self {
         Self {
             offset,
             id,
@@ -40,7 +40,7 @@ impl BytesSerializable for Message {
         let offset = u64::from_le_bytes(bytes[0..8].try_into()?);
         let id = u64::from_le_bytes(bytes[8..16].try_into()?);
         let payload_length = u32::from_le_bytes(bytes[16..20].try_into()?) as usize;
-        let payload = bytes[20..payload_length + 20].to_vec();
+        let payload = Bytes::from(bytes[20..payload_length + 20].to_vec());
         Ok(Self {
             offset,
             id,
@@ -55,7 +55,7 @@ mod tests {
 
     #[test]
     fn should_serialize_and_deserialize_message() {
-        let message = Message::new(1, 2, b"test".to_vec());
+        let message = Message::new(1, 2, Bytes::from("test"));
         let bytes = message.as_bytes();
         let deserialized_message = Message::from_bytes(&bytes).unwrap();
         assert_eq!(message.offset, deserialized_message.offset);

@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use sdk::commands::append_messages::{AppendMessages, Message};
 use sdk::commands::command::Command;
 use sdk::commands::ping::Ping;
@@ -17,7 +18,7 @@ fn parse_append_messages(input: &str) -> Command {
         .split(',')
         .map(|x| Message {
             id: 0,
-            payload: x.as_bytes().to_vec(),
+            payload: Bytes::from(x.as_bytes().to_vec()),
         })
         .collect::<Vec<Message>>();
 
