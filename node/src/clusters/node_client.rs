@@ -1,4 +1,4 @@
-use crate::connection::tcp_handler::TcpHandler;
+use crate::connection::tcp_connection::TcpConnection;
 use futures::lock::Mutex;
 use monoio::net::TcpStream;
 use monoio::time::sleep;
@@ -25,9 +25,9 @@ pub enum HealthState {
 
 #[derive(Debug)]
 pub struct NodeClient {
-    pub(crate) self_name: String,
-    pub(crate) address: SocketAddr,
-    pub(crate) handler: Mutex<Option<TcpHandler>>,
+    pub self_name: String,
+    pub address: SocketAddr,
+    pub handler: Mutex<Option<TcpConnection>>,
     client_state: Mutex<ClientState>,
     health_state: Mutex<HealthState>,
     reconnection_retries: u32,
@@ -96,7 +96,10 @@ impl NodeClient {
             elapsed = now.elapsed();
             let stream = connection.unwrap();
             remote_address = stream.peer_addr()?;
-            self.handler.lock().await.replace(TcpHandler::new(stream));
+            self.handler
+                .lock()
+                .await
+                .replace(TcpConnection::new(stream));
             self.set_client_state(ClientState::Connected).await;
             self.set_health_state(HealthState::Healthy).await;
             break;

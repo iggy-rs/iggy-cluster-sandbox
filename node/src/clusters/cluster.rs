@@ -20,13 +20,13 @@ pub struct Cluster {
 }
 
 #[derive(Debug)]
-pub struct ClusterNode {
+pub(crate) struct ClusterNode {
     pub state: Mutex<ClusterNodeState>,
     pub node: Node,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum ClusterNodeState {
+pub(crate) enum ClusterNodeState {
     Connected,
     Disconnected,
 }

@@ -12,7 +12,7 @@ use tracing::{error, info};
 const LOG_FILE: &str = "stream.log";
 
 #[derive(Debug)]
-pub struct Streamer {
+pub(crate) struct Streamer {
     path: String,
     stream_path: String,
     messages: Vec<Message>,

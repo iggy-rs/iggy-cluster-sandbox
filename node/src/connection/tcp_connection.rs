@@ -10,11 +10,11 @@ const RESPONSE_INITIAL_BYTES_LENGTH: usize = 8;
 const EMPTY_BYTES: Vec<u8> = vec![];
 
 #[derive(Debug)]
-pub struct TcpHandler {
+pub(crate) struct TcpConnection {
     stream: TcpStream,
 }
 
-impl TcpHandler {
+impl TcpConnection {
     pub fn new(stream: TcpStream) -> Self {
         Self { stream }
     }

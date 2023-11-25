@@ -1,12 +1,12 @@
 use crate::clusters::cluster::{Cluster, ClusterState};
-use crate::connection::tcp_handler::TcpHandler;
+use crate::connection::tcp_connection::TcpConnection;
 use sdk::commands::sync_messages::SyncMessages;
 use sdk::error::SystemError;
 use std::rc::Rc;
 use tracing::{info, warn};
 
-pub async fn handle(
-    handler: &mut TcpHandler,
+pub(crate) async fn handle(
+    handler: &mut TcpConnection,
     _: &SyncMessages,
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {

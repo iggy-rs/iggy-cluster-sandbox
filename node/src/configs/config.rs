@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Deserialize, Serialize, Default)]
-pub struct SystemConfig {
+pub(crate) struct SystemConfig {
     pub node: NodeConfig,
     pub cluster: ClusterConfig,
     pub stream: StreamConfig,
@@ -10,23 +10,23 @@ pub struct SystemConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct StreamConfig {
+pub(crate) struct StreamConfig {
     pub path: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ServerConfig {
+pub(crate) struct ServerConfig {
     pub address: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct NodeConfig {
+pub(crate) struct NodeConfig {
     pub name: String,
     pub address: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ClusterConfig {
+pub(crate) struct ClusterConfig {
     pub max_timeout: u32,
     pub healthcheck_interval: u64,
     pub reconnection_interval: u64,
@@ -35,7 +35,7 @@ pub struct ClusterConfig {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct ClusterNodeConfig {
+pub(crate) struct ClusterNodeConfig {
     pub name: String,
     pub address: String,
 }

@@ -12,11 +12,11 @@ use tracing::info;
 const DEFAULT_CONFIG_PATH: &str = "configs/node1.toml";
 
 #[derive(Debug)]
-pub struct FileConfigProvider {
+pub(crate) struct FileConfigProvider {
     path: String,
 }
 
-pub struct CustomEnvProvider {
+pub(crate) struct CustomEnvProvider {
     prefix: String,
 }
 

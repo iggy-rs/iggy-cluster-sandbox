@@ -1,7 +1,9 @@
 use crate::clusters::cluster::Cluster;
-use crate::connection::tcp_handler::TcpHandler;
-use crate::server::tcp_connection::{handle_error, tcp_listener};
+use crate::connection::tcp_connection::TcpConnection;
+use crate::server::tcp_listener::listen;
 use monoio::net::TcpListener;
+use sdk::error::SystemError;
+use std::io::ErrorKind;
 use std::rc::Rc;
 use tracing::{error, info};
 
@@ -22,9 +24,9 @@ pub fn start(name: &str, address: &str, cluster: Rc<Cluster>) {
             match listener.accept().await {
                 Ok((stream, address)) => {
                     info!("{server_name} has accepted new TCP connection: {address}");
-                    let mut handler = TcpHandler::new(stream);
+                    let mut connection = TcpConnection::new(stream);
                     monoio::spawn(async move {
-                        if let Err(error) = tcp_listener(&mut handler, cluster).await {
+                        if let Err(error) = listen(&mut connection, cluster).await {
                             handle_error(error);
                         }
                     });
@@ -36,4 +38,29 @@ pub fn start(name: &str, address: &str, cluster: Rc<Cluster>) {
         }
     });
     info!("{name} has started on TCP address: {node_address}");
+}
+
+fn handle_error(error: SystemError) {
+    match error {
+        SystemError::IoError(error) => match error.kind() {
+            ErrorKind::UnexpectedEof => {
+                info!("Connection has been closed.");
+            }
+            ErrorKind::ConnectionAborted => {
+                info!("Connection has been aborted.");
+            }
+            ErrorKind::ConnectionRefused => {
+                info!("Connection has been refused.");
+            }
+            ErrorKind::ConnectionReset => {
+                info!("Connection has been reset.");
+            }
+            _ => {
+                error!("Connection has failed: {error}");
+            }
+        },
+        _ => {
+            error!("Connection has failed: {error}");
+        }
+    }
 }

@@ -3,7 +3,7 @@ use sdk::bytes_serializable::BytesSerializable;
 use sdk::error::SystemError;
 
 #[derive(Debug)]
-pub struct Message {
+pub(crate) struct Message {
     pub offset: u64,
     pub id: u64,
     pub payload: Bytes,

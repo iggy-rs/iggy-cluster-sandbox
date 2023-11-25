@@ -1,4 +1,4 @@
-pub mod clients;
+mod clients;
 pub mod cluster;
-pub mod node;
-pub mod node_client;
+mod node;
+mod node_client;

@@ -5,7 +5,7 @@ use sdk::error::SystemError;
 use tracing::{error, info};
 
 #[derive(Debug)]
-pub struct Client {
+pub(crate) struct Client {
     tcp_stream: TcpStream,
 }
 
