@@ -3,6 +3,7 @@ use crate::configs::config::ClusterConfig;
 use crate::streaming::streamer::Streamer;
 use futures::lock::Mutex;
 use sdk::error::SystemError;
+use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use tracing::{error, info};
 
@@ -19,9 +20,16 @@ pub struct Cluster {
     pub streamer: Mutex<Streamer>,
 }
 
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum ClusterNodeRole {
+    Leader,
+    Follower,
+}
+
 #[derive(Debug)]
 pub(crate) struct ClusterNode {
     pub state: Mutex<ClusterNodeState>,
+    pub role: ClusterNodeRole,
     pub node: Node,
 }
 
@@ -29,6 +37,24 @@ pub(crate) struct ClusterNode {
 pub(crate) enum ClusterNodeState {
     Connected,
     Disconnected,
+}
+
+impl Display for ClusterNodeRole {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClusterNodeRole::Leader => write!(f, "leader"),
+            ClusterNodeRole::Follower => write!(f, "follower"),
+        }
+    }
+}
+
+impl Display for ClusterNodeState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClusterNodeState::Connected => write!(f, "connected"),
+            ClusterNodeState::Disconnected => write!(f, "disconnected"),
+        }
+    }
 }
 
 impl Cluster {
@@ -41,10 +67,12 @@ impl Cluster {
         let mut nodes = Vec::new();
         nodes.push(Rc::new(ClusterNode {
             state: Mutex::new(ClusterNodeState::Connected),
+            role: ClusterNodeRole::Leader,
             node: Self::create_node(self_name, self_name, self_address, true, config)?,
         }));
         for node in &config.nodes {
             let cluster_node = ClusterNode {
+                role: ClusterNodeRole::Follower,
                 state: Mutex::new(ClusterNodeState::Disconnected),
                 node: Self::create_node(&node.name, self_name, &node.address, false, config)?,
             };
@@ -124,7 +152,10 @@ impl Cluster {
     }
 
     async fn connect_to_node(cluster_node: &ClusterNode) -> Result<(), SystemError> {
-        info!("Connecting to cluster node: {}", cluster_node.node.name);
+        info!(
+            "Connecting to cluster node: {}, role: {}",
+            cluster_node.node.name, cluster_node.role
+        );
         if cluster_node.node.connect().await.is_err() {
             *cluster_node.state.lock().await = ClusterNodeState::Disconnected;
             error!(

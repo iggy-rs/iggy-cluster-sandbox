@@ -15,7 +15,7 @@ impl Client {
         Ok(Self { tcp_stream })
     }
 
-    pub async fn send(&mut self, command: Command) -> Result<(), SystemError> {
+    pub async fn send(&mut self, command: &Command) -> Result<(), SystemError> {
         info!("Sending command to Iggy node...");
         let (result, _) = self.tcp_stream.write_all(command.as_bytes()).await;
         if result.is_err() {

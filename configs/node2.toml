@@ -2,11 +2,11 @@
 path = "local_data/node2/streams"
 
 [server]
-address = "0.0.0.0:8111"
+address = "0.0.0.0:8102"
 
 [node]
 name = "node2"
-address = "0.0.0.0:8110"
+address = "0.0.0.0:8202"
 
 [cluster]
 max_timeout = 1000
@@ -16,8 +16,8 @@ reconnection_retries = 10
 
 [[cluster.nodes]]
 name = "node1"
-address = "0.0.0.0:8100"
+address = "0.0.0.0:8201"
 
 [[cluster.nodes]]
 name = "node3"
-address = "0.0.0.0:8120"
+address = "0.0.0.0:8203"

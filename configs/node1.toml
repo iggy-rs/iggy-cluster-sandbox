@@ -6,7 +6,7 @@ address = "0.0.0.0:8101"
 
 [node]
 name = "node1"
-address = "0.0.0.0:8100"
+address = "0.0.0.0:8201"
 
 [cluster]
 max_timeout = 1000
@@ -16,8 +16,8 @@ reconnection_retries = 10
 
 [[cluster.nodes]]
 name = "node2"
-address = "0.0.0.0:8110"
+address = "0.0.0.0:8202"
 
 [[cluster.nodes]]
 name = "node3"
-address = "0.0.0.0:8120"
+address = "0.0.0.0:8203"

@@ -60,7 +60,7 @@ impl Default for NodeConfig {
     fn default() -> Self {
         Self {
             name: "node".to_string(),
-            address: "0.0.0.0:8100".to_string(),
+            address: "0.0.0.0:8201".to_string(),
         }
     }
 }
