@@ -895,8 +895,10 @@ dependencies = [
  "bytes",
  "chrono",
  "futures",
+ "monoio",
  "serde",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]

@@ -1,15 +1,15 @@
+use crate::commands::command::Command;
+use crate::error::SystemError;
 use monoio::io::{AsyncReadRent, AsyncWriteRentExt};
 use monoio::net::TcpStream;
-use sdk::commands::command::Command;
-use sdk::error::SystemError;
 use tracing::{error, info};
 
 #[derive(Debug)]
-pub(crate) struct Client {
+pub struct NodeClient {
     tcp_stream: TcpStream,
 }
 
-impl Client {
+impl NodeClient {
     pub async fn init(address: &str) -> Result<Self, SystemError> {
         let tcp_stream = TcpStream::connect(address).await?;
         Ok(Self { tcp_stream })
