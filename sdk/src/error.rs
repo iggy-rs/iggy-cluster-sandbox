@@ -6,6 +6,8 @@ use thiserror::Error;
 pub enum SystemError {
     #[error("Unhealthy cluster")]
     UnhealthyCluster,
+    #[error("Invalid cluster secret")]
+    InvalidClusterSecret,
     #[error("IO error")]
     IoError(#[from] io::Error),
     #[error("Try from slice error")]
@@ -46,23 +48,24 @@ impl SystemError {
     pub fn as_code(&self) -> u32 {
         match self {
             SystemError::UnhealthyCluster => 1,
-            SystemError::IoError(_) => 2,
-            SystemError::TryFromSliceError(_) => 3,
-            SystemError::ConfigNotFound(_) => 4,
-            SystemError::ConfigInvalid(_) => 5,
-            SystemError::CannotConnectToClusterNode(_) => 6,
-            SystemError::InvalidClusterNodeAddress(_) => 7,
-            SystemError::InvalidCommandCode(_) => 8,
-            SystemError::InvalidRequest => 9,
-            SystemError::InvalidResponse => 10,
-            SystemError::ClientDisconnected => 11,
-            SystemError::SendRequestFailed => 12,
-            SystemError::InvalidCommand => 13,
-            SystemError::InvalidNode(_) => 14,
-            SystemError::CannotAppendMessage => 15,
-            SystemError::CannotSendCommand => 16,
-            SystemError::CannotReadResponse => 17,
-            SystemError::ErrorResponse(_) => 18,
+            SystemError::InvalidClusterSecret => 2,
+            SystemError::IoError(_) => 3,
+            SystemError::TryFromSliceError(_) => 4,
+            SystemError::ConfigNotFound(_) => 5,
+            SystemError::ConfigInvalid(_) => 6,
+            SystemError::CannotConnectToClusterNode(_) => 7,
+            SystemError::InvalidClusterNodeAddress(_) => 8,
+            SystemError::InvalidCommandCode(_) => 9,
+            SystemError::InvalidRequest => 10,
+            SystemError::InvalidResponse => 11,
+            SystemError::ClientDisconnected => 12,
+            SystemError::SendRequestFailed => 13,
+            SystemError::InvalidCommand => 14,
+            SystemError::InvalidNode(_) => 15,
+            SystemError::CannotAppendMessage => 16,
+            SystemError::CannotSendCommand => 17,
+            SystemError::CannotReadResponse => 18,
+            SystemError::ErrorResponse(_) => 19,
         }
     }
 }

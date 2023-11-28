@@ -1,3 +1,4 @@
+use crate::clusters::node::Resiliency;
 use crate::connection::tcp_connection::TcpConnection;
 use futures::lock::Mutex;
 use monoio::net::TcpStream;
@@ -25,21 +26,21 @@ pub enum HealthState {
 
 #[derive(Debug)]
 pub struct NodeClient {
+    pub secret: String,
     pub self_name: String,
     pub address: SocketAddr,
     pub handler: Mutex<Option<TcpConnection>>,
     client_state: Mutex<ClientState>,
     health_state: Mutex<HealthState>,
-    reconnection_retries: u32,
-    reconnection_interval: u64,
+    resiliency: Resiliency,
 }
 
 impl NodeClient {
     pub fn new(
+        secret: &str,
         self_name: &str,
         address: &str,
-        reconnection_retries: u32,
-        reconnection_interval: u64,
+        resiliency: Resiliency,
     ) -> Result<Self, SystemError> {
         let node_address = address;
         let address = address.parse::<SocketAddr>();
@@ -50,13 +51,13 @@ impl NodeClient {
         }
 
         Ok(Self {
+            secret: secret.to_string(),
             self_name: self_name.to_string(),
             address: address.unwrap(),
             handler: Mutex::new(None),
             client_state: Mutex::new(ClientState::Disconnected),
             health_state: Mutex::new(HealthState::Unknown),
-            reconnection_retries,
-            reconnection_interval,
+            resiliency,
         })
     }
 
@@ -75,16 +76,16 @@ impl NodeClient {
             let connection = TcpStream::connect(self.address).await;
             if connection.is_err() {
                 error!("Failed to connect to cluster node: {}", self.address);
-                if retry_count < self.reconnection_retries {
+                if retry_count < self.resiliency.reconnection_retries {
                     retry_count += 1;
                     info!(
                         "Retrying ({}/{}) to connect to cluster node: {} in: {} ms...",
                         retry_count,
-                        self.reconnection_retries,
+                        self.resiliency.reconnection_retries,
                         self.address,
-                        self.reconnection_interval
+                        self.resiliency.reconnection_interval
                     );
-                    sleep(Duration::from_millis(self.reconnection_interval)).await;
+                    sleep(Duration::from_millis(self.resiliency.reconnection_interval)).await;
                     continue;
                 }
 
@@ -110,8 +111,11 @@ impl NodeClient {
             elapsed.as_millis()
         );
 
-        self.send_request(&Hello::new_command(self.self_name.clone()))
-            .await?;
+        self.send_request(&Hello::new_command(
+            self.secret.clone(),
+            self.self_name.clone(),
+        ))
+        .await?;
         info!("Sent hello message to cluster node: {}", self.address);
 
         Ok(())

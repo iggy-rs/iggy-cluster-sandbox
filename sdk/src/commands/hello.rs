@@ -6,19 +6,23 @@ use std::str::from_utf8;
 
 #[derive(Debug, Default, PartialEq)]
 pub struct Hello {
+    pub secret: String,
     pub name: String,
 }
 
 impl Hello {
-    pub fn new_command(name: String) -> Command {
-        Command::Hello(Hello { name })
+    pub fn new_command(secret: String, name: String) -> Command {
+        Command::Hello(Hello { secret, name })
     }
 }
 
 impl BytesSerializable for Hello {
     fn as_bytes(&self) -> Vec<u8> {
+        let secret_len = self.secret.len();
         let name_len = self.name.len();
-        let mut bytes = Vec::with_capacity(1 + name_len);
+        let mut bytes = Vec::with_capacity(2 + secret_len + name_len);
+        bytes.put_u8(secret_len as u8);
+        bytes.extend(self.secret.as_bytes());
         bytes.put_u8(name_len as u8);
         bytes.extend(self.name.as_bytes());
         bytes
@@ -29,10 +33,14 @@ impl BytesSerializable for Hello {
             return Err(SystemError::InvalidCommand);
         }
 
-        let name_len = bytes[0] as usize;
-        let name = from_utf8(&bytes[1..=name_len]).map_err(|_| SystemError::InvalidCommand)?;
+        let secret_len = bytes[0] as usize;
+        let secret = from_utf8(&bytes[1..=secret_len]).map_err(|_| SystemError::InvalidCommand)?;
+        let name_len = bytes[secret_len + 1] as usize;
+        let name = from_utf8(&bytes[secret_len + 2..=secret_len + 1 + name_len])
+            .map_err(|_| SystemError::InvalidCommand)?;
 
         let command = Hello {
+            secret: secret.to_string(),
             name: name.to_string(),
         };
         Ok(command)

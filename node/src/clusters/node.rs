@@ -13,6 +13,12 @@ pub struct Node {
     client: NodeClient,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct Resiliency {
+    pub reconnection_retries: u32,
+    pub reconnection_interval: u64,
+}
+
 #[derive(Debug)]
 pub struct NodeHealthcheck {
     pub interval: Duration,
@@ -20,20 +26,15 @@ pub struct NodeHealthcheck {
 
 impl Node {
     pub fn new(
+        secret: &str,
         name: &str,
         self_name: &str,
         address: &str,
         is_self: bool,
         healthcheck_interval: u64,
-        reconnection_interval: u64,
-        reconnection_retries: u32,
+        resiliency: Resiliency,
     ) -> Result<Self, SystemError> {
-        let client = NodeClient::new(
-            self_name,
-            address,
-            reconnection_retries,
-            reconnection_interval,
-        )?;
+        let client = NodeClient::new(secret, self_name, address, resiliency)?;
         Ok(Self {
             name: name.to_string(),
             address: address.to_string(),

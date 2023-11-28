@@ -1,4 +1,4 @@
-use crate::clusters::node::Node;
+use crate::clusters::node::{Node, Resiliency};
 use crate::configs::config::ClusterConfig;
 use crate::streaming::streamer::Streamer;
 use futures::lock::Mutex;
@@ -18,6 +18,7 @@ pub struct Cluster {
     pub state: Mutex<ClusterState>,
     pub nodes: Vec<Rc<ClusterNode>>,
     pub streamer: Mutex<Streamer>,
+    pub secret: String,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -68,13 +69,27 @@ impl Cluster {
         nodes.push(Rc::new(ClusterNode {
             state: Mutex::new(ClusterNodeState::Connected),
             role: ClusterNodeRole::Leader,
-            node: Self::create_node(self_name, self_name, self_address, true, config)?,
+            node: Self::create_node(
+                &config.secret,
+                self_name,
+                self_name,
+                self_address,
+                true,
+                config,
+            )?,
         }));
         for node in &config.nodes {
             let cluster_node = ClusterNode {
                 role: ClusterNodeRole::Follower,
                 state: Mutex::new(ClusterNodeState::Disconnected),
-                node: Self::create_node(&node.name, self_name, &node.address, false, config)?,
+                node: Self::create_node(
+                    &config.secret,
+                    &node.name,
+                    self_name,
+                    &node.address,
+                    false,
+                    config,
+                )?,
             };
             nodes.push(Rc::new(cluster_node));
         }
@@ -83,10 +98,12 @@ impl Cluster {
             state: Mutex::new(ClusterState::Uninitialized),
             nodes,
             streamer: Mutex::new(streamer),
+            secret: config.secret.to_string(),
         })
     }
 
     fn create_node(
+        secret: &str,
         node_name: &str,
         self_name: &str,
         node_address: &str,
@@ -94,13 +111,16 @@ impl Cluster {
         config: &ClusterConfig,
     ) -> Result<Node, SystemError> {
         Node::new(
+            secret,
             node_name,
             self_name,
             node_address,
             is_self,
             config.healthcheck_interval,
-            config.reconnection_interval,
-            config.reconnection_retries,
+            Resiliency {
+                reconnection_retries: config.reconnection_retries,
+                reconnection_interval: config.reconnection_interval,
+            },
         )
     }
 
@@ -239,6 +259,10 @@ impl Cluster {
         }
 
         false
+    }
+
+    pub fn validate_secret(&self, secret: &str) -> bool {
+        self.secret == secret
     }
 
     pub async fn get_state(&self) -> ClusterState {
