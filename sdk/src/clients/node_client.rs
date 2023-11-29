@@ -34,6 +34,7 @@ impl NodeClient {
         let status = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
         let payload_length = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
         if status == 0 {
+            // TODO: Handle payload.
             info!("Received OK response from Iggy node, payload length: {payload_length}.",);
             return Ok(());
         }

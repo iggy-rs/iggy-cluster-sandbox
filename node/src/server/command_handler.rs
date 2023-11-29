@@ -24,6 +24,9 @@ pub async fn handle(
         Command::AppendMessages(command) => {
             append_messages_handler::handle(handler, command, cluster).await?;
         }
+        Command::PollMessages(command) => {
+            poll_messages_handler::handle(handler, command, cluster).await?;
+        }
         Command::SyncMessages(command) => {
             sync_messages_handler::handle(handler, command, cluster).await?;
         }

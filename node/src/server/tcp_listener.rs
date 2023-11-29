@@ -4,7 +4,7 @@ use crate::server::command_handler;
 use sdk::commands::command::Command;
 use sdk::error::SystemError;
 use std::rc::Rc;
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 const INITIAL_BYTES_LENGTH: usize = 8;
 
@@ -42,11 +42,12 @@ pub async fn listen(handler: &mut TcpConnection, cluster: Rc<Cluster>) -> Result
         }
 
         let command = command.unwrap();
-        if command_handler::handle(handler, &command, &cluster)
-            .await
-            .is_err()
-        {
+        if let Err(error) = command_handler::handle(handler, &command, &cluster).await {
             error!("Unable to handle the TCP request.");
+            if let SystemError::UnhealthyCluster = &error {
+                warn!("Cluster is not healthy, unable to handle the TCP request.");
+            }
+            handler.send_error_response(error).await?;
         }
     }
 }

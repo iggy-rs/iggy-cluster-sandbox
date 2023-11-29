@@ -2,6 +2,7 @@ use crate::bytes_serializable::BytesSerializable;
 use crate::commands::append_messages::AppendMessages;
 use crate::commands::hello::Hello;
 use crate::commands::ping::Ping;
+use crate::commands::poll_messages::PollMessages;
 use crate::commands::sync_messages::SyncMessages;
 use crate::error::SystemError;
 use bytes::BufMut;
@@ -9,7 +10,8 @@ use std::fmt::{Display, Formatter};
 
 const HELLO_CODE: u32 = 1;
 const PING_CODE: u32 = 2;
-const APPEND_MESSAGES_CODE: u32 = 3;
+const APPEND_MESSAGES_CODE: u32 = 20;
+const POLL_MESSAGES_CODE: u32 = 30;
 const SYNC_MESSAGES_CODE: u32 = 1100;
 
 #[derive(Debug)]
@@ -17,6 +19,7 @@ pub enum Command {
     Hello(Hello),
     Ping(Ping),
     AppendMessages(AppendMessages),
+    PollMessages(PollMessages),
     SyncMessages(SyncMessages),
 }
 
@@ -26,6 +29,7 @@ impl Command {
             Command::Hello(_) => "hello",
             Command::Ping(_) => "ping",
             Command::AppendMessages(_) => "append_messages",
+            Command::PollMessages(_) => "poll_messages",
             Command::SyncMessages(_) => "sync_messages",
         }
     }
@@ -35,6 +39,7 @@ impl Command {
             Command::Hello(command) => to_bytes(HELLO_CODE, command),
             Command::Ping(command) => to_bytes(PING_CODE, command),
             Command::AppendMessages(command) => to_bytes(APPEND_MESSAGES_CODE, command),
+            Command::PollMessages(command) => to_bytes(POLL_MESSAGES_CODE, command),
             Command::SyncMessages(command) => to_bytes(SYNC_MESSAGES_CODE, command),
         }
     }
@@ -47,6 +52,7 @@ impl Command {
             HELLO_CODE => Ok(Command::Hello(Hello::from_bytes(bytes)?)),
             PING_CODE => Ok(Command::Ping(Ping::from_bytes(bytes)?)),
             APPEND_MESSAGES_CODE => Ok(Command::AppendMessages(AppendMessages::from_bytes(bytes)?)),
+            POLL_MESSAGES_CODE => Ok(Command::PollMessages(PollMessages::from_bytes(bytes)?)),
             SYNC_MESSAGES_CODE => Ok(Command::SyncMessages(SyncMessages::from_bytes(bytes)?)),
             _ => Err(SystemError::InvalidCommandCode(code)),
         }
@@ -69,6 +75,13 @@ impl Display for Command {
             Command::Ping(_) => write!(f, "Ping"),
             Command::AppendMessages(append_data) => {
                 write!(f, "Append messages: {:?}", append_data.messages)
+            }
+            Command::PollMessages(poll_data) => {
+                write!(
+                    f,
+                    "Poll messages -> offset: {}, count: {}",
+                    poll_data.offset, poll_data.count
+                )
             }
             Command::SyncMessages(sync_data) => {
                 write!(f, "Sync messages: {:?}", sync_data.messages)

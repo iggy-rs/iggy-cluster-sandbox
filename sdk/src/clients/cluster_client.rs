@@ -17,7 +17,7 @@ pub struct ClusterClient {
 
 impl ClusterClient {
     pub fn new(
-        addresses: Vec<String>,
+        addresses: Vec<&str>,
         reconnection_interval: u64,
         reconnection_retries: u32,
     ) -> Self {
@@ -26,14 +26,19 @@ impl ClusterClient {
             reconnection_retries,
             clients: addresses
                 .iter()
-                .map(|address| (address.clone(), None))
+                .map(|address| (address.to_string(), None))
                 .collect(),
         }
     }
 
     pub async fn init(&mut self) -> Result<(), SystemError> {
+        let addresses = self.clients.keys().cloned().collect::<Vec<String>>();
+        info!(
+            "Connecting to Iggy cluster, nodes: {}",
+            addresses.join(", ")
+        );
         if self.clients.iter().all(|(_, client)| client.is_some()) {
-            info!("Already connected to all Iggy nodes.");
+            info!("Already connected to Iggy cluster.");
             return Ok(());
         }
 
@@ -76,6 +81,7 @@ impl ClusterClient {
                 .insert(address, Some(Rc::new(Mutex::new(client))));
         }
 
+        info!("Connected to Iggy cluster.");
         Ok(())
     }
 

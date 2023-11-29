@@ -3,7 +3,7 @@ use crate::connection::tcp_connection::TcpConnection;
 use sdk::commands::sync_messages::SyncMessages;
 use sdk::error::SystemError;
 use std::rc::Rc;
-use tracing::{info, warn};
+use tracing::info;
 
 pub(crate) async fn handle(
     handler: &mut TcpConnection,
@@ -11,11 +11,7 @@ pub(crate) async fn handle(
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {
     if cluster.get_state().await != ClusterState::Healthy {
-        warn!("Cluster is not healthy, unable to append messages.");
-        handler
-            .send_error_response(SystemError::UnhealthyCluster)
-            .await?;
-        return Ok(());
+        return Err(SystemError::UnhealthyCluster);
     }
 
     info!("Received send messages command");

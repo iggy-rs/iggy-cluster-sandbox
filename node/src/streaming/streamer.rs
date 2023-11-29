@@ -46,7 +46,7 @@ impl Streamer {
                 .unwrap_or_else(|_| panic!("Failed to create stream file: {}", self.stream_path));
             info!("Created empty stream file: {}", self.stream_path);
         } else {
-            let (messages, position) = self.load_messages().await;
+            let (messages, position) = self.load_messages_from_disk().await;
             if !messages.is_empty() {
                 self.messages = messages;
                 self.current_position = position;
@@ -110,7 +110,26 @@ impl Streamer {
         Ok(())
     }
 
-    pub async fn load_messages(&self) -> (Vec<Message>, u64) {
+    pub fn poll_messages(&self, offset: u64, count: u64) -> Result<&[Message], SystemError> {
+        if offset > self.current_offset {
+            return Err(SystemError::InvalidOffset);
+        }
+
+        if count == 0 {
+            return Err(SystemError::InvalidCount);
+        }
+
+        let start_offset = offset;
+        let mut end_offset = offset + count - 1;
+        if end_offset > self.current_offset {
+            end_offset = self.current_offset;
+        }
+
+        let messages = self.messages[start_offset as usize..=end_offset as usize].as_ref();
+        Ok(messages)
+    }
+
+    pub async fn load_messages_from_disk(&self) -> (Vec<Message>, u64) {
         let mut messages = Vec::new();
         let file = file::open(&self.stream_path)
             .await
@@ -216,7 +235,7 @@ mod tests {
         };
         let result = streamer.append_messages(&append_messages).await;
         assert!(result.is_ok());
-        let (loaded_messages, position) = streamer.load_messages().await;
+        let (loaded_messages, position) = streamer.load_messages_from_disk().await;
         assert!(position > 0);
         assert_eq!(loaded_messages.len(), 3);
         let loaded_message1 = &loaded_messages[0];

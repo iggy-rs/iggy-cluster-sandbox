@@ -42,6 +42,10 @@ pub enum SystemError {
     CannotReadResponse,
     #[error("Received error response with status: {0}")]
     ErrorResponse(u32),
+    #[error("Invalid offset")]
+    InvalidOffset,
+    #[error("Invalid count")]
+    InvalidCount,
 }
 
 impl SystemError {
@@ -66,6 +70,8 @@ impl SystemError {
             SystemError::CannotSendCommand => 17,
             SystemError::CannotReadResponse => 18,
             SystemError::ErrorResponse(_) => 19,
+            SystemError::InvalidOffset => 20,
+            SystemError::InvalidCount => 21,
         }
     }
 }
