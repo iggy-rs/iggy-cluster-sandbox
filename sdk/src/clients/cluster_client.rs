@@ -85,7 +85,12 @@ impl ClusterClient {
         Ok(())
     }
 
-    pub async fn send(&self, command: &Command) -> Result<(), SystemError> {
+    pub async fn send(&self, command: &Command) -> Result<Vec<u8>, SystemError> {
+        if self.clients.iter().all(|(_, client)| client.is_none()) {
+            return Err(SystemError::UnhealthyCluster);
+        }
+
+        let mut result = Vec::new();
         for (_, client) in self.clients.iter() {
             if client.is_none() {
                 continue;
@@ -93,8 +98,8 @@ impl ClusterClient {
 
             let client = client.as_ref().unwrap();
             let mut client = client.lock().await;
-            client.send(command).await?
+            result = client.send(command).await?
         }
-        Ok(())
+        Ok(result)
     }
 }

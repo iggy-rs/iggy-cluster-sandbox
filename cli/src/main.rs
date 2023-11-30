@@ -1,3 +1,4 @@
+mod command_handler;
 mod command_parser;
 
 use figlet_rs::FIGfont;
@@ -39,8 +40,6 @@ async fn main() -> Result<(), SystemError> {
         }
 
         let command = command.unwrap();
-        if cluster.send(&command).await.is_err() {
-            error!("There was an error sending the command to the cluster.");
-        }
+        command_handler::handle(&command, &cluster).await;
     }
 }

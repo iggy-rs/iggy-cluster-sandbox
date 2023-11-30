@@ -4,6 +4,8 @@ use monoio::io::{AsyncReadRent, AsyncWriteRentExt};
 use monoio::net::TcpStream;
 use tracing::{error, info};
 
+const EMPTY_PAYLOAD: Vec<u8> = vec![];
+
 #[derive(Debug)]
 pub struct NodeClient {
     tcp_stream: TcpStream,
@@ -15,7 +17,7 @@ impl NodeClient {
         Ok(Self { tcp_stream })
     }
 
-    pub async fn send(&mut self, command: &Command) -> Result<(), SystemError> {
+    pub async fn send(&mut self, command: &Command) -> Result<Vec<u8>, SystemError> {
         info!("Sending command to Iggy node...");
         let (result, _) = self.tcp_stream.write_all(command.as_bytes()).await;
         if result.is_err() {
@@ -34,9 +36,19 @@ impl NodeClient {
         let status = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
         let payload_length = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
         if status == 0 {
-            // TODO: Handle payload.
             info!("Received OK response from Iggy node, payload length: {payload_length}.",);
-            return Ok(());
+            if payload_length == 0 {
+                return Ok(EMPTY_PAYLOAD);
+            }
+
+            let payload = vec![0u8; payload_length as usize];
+            let (read_bytes, payload) = self.tcp_stream.read(payload).await;
+            if read_bytes.is_err() {
+                error!("Failed to read a response: {:?}", read_bytes.err());
+                return Err(SystemError::CannotReadResponse);
+            }
+
+            return Ok(payload);
         }
 
         error!("Received error response from Iggy node, status: {status}.");
