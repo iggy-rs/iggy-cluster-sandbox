@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use sdk::commands::append_messages::{AppendMessages, Message};
+use sdk::commands::append_messages::{AppendMessages, AppendableMessage};
 use sdk::commands::command::Command;
 use sdk::commands::ping::Ping;
 use sdk::commands::poll_messages::PollMessages;
@@ -18,11 +18,11 @@ pub(crate) fn parse(input: &str) -> Option<Command> {
 fn parse_append_messages(input: &str) -> Command {
     let messages = input
         .split(',')
-        .map(|x| Message {
+        .map(|x| AppendableMessage {
             id: 0,
             payload: Bytes::from(x.as_bytes().to_vec()),
         })
-        .collect::<Vec<Message>>();
+        .collect::<Vec<AppendableMessage>>();
 
     AppendMessages::new_command(messages)
 }

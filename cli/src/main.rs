@@ -40,6 +40,8 @@ async fn main() -> Result<(), SystemError> {
         }
 
         let command = command.unwrap();
-        command_handler::handle(&command, &cluster).await;
+        if let Err(error) = command_handler::handle(command, &cluster).await {
+            error!("There was an error sending the command to the cluster. Error: {error}");
+        };
     }
 }

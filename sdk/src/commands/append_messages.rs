@@ -5,22 +5,22 @@ use bytes::{BufMut, Bytes};
 
 #[derive(Debug)]
 pub struct AppendMessages {
-    pub messages: Vec<Message>,
+    pub messages: Vec<AppendableMessage>,
 }
 
 #[derive(Debug)]
-pub struct Message {
+pub struct AppendableMessage {
     pub id: u64,
     pub payload: Bytes,
 }
 
 impl AppendMessages {
-    pub fn new_command(messages: Vec<Message>) -> Command {
+    pub fn new_command(messages: Vec<AppendableMessage>) -> Command {
         Command::AppendMessages(AppendMessages { messages })
     }
 }
 
-impl BytesSerializable for Message {
+impl BytesSerializable for AppendableMessage {
     fn as_bytes(&self) -> Vec<u8> {
         let payload_length = self.payload.len();
         let mut bytes = Vec::with_capacity(12 + payload_length);
@@ -37,7 +37,7 @@ impl BytesSerializable for Message {
         let id = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
         let payload_length = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as usize;
         let payload = Bytes::from(bytes[12..payload_length + 12].to_vec());
-        Ok(Message { id, payload })
+        Ok(AppendableMessage { id, payload })
     }
 }
 
@@ -58,7 +58,7 @@ impl BytesSerializable for AppendMessages {
         let mut messages = Vec::new();
         let mut position = 0;
         while position < bytes.len() {
-            let message = Message::from_bytes(&bytes[position..])?;
+            let message = AppendableMessage::from_bytes(&bytes[position..])?;
             position += 12 + message.payload.len();
             messages.push(message);
         }

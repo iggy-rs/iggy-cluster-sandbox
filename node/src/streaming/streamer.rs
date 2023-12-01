@@ -219,15 +219,15 @@ mod tests {
         streamer.init().await;
         let append_messages = AppendMessages {
             messages: vec![
-                sdk::commands::append_messages::Message {
+                sdk::commands::append_messages::AppendableMessage {
                     id: 1,
                     payload: Bytes::from("message-1"),
                 },
-                sdk::commands::append_messages::Message {
+                sdk::commands::append_messages::AppendableMessage {
                     id: 2,
                     payload: Bytes::from("message-2"),
                 },
-                sdk::commands::append_messages::Message {
+                sdk::commands::append_messages::AppendableMessage {
                     id: 3,
                     payload: Bytes::from("message-3"),
                 },

@@ -1,6 +1,11 @@
 use crate::clients::node_client::NodeClient;
+use crate::commands::append_messages::{AppendMessages, AppendableMessage};
 use crate::commands::command::Command;
+use crate::commands::ping::Ping;
+use crate::commands::poll_messages::PollMessages;
 use crate::error::SystemError;
+use crate::models::message::Message;
+use bytes::Bytes;
 use futures::lock::Mutex;
 use monoio::time::sleep;
 use std::collections::HashMap;
@@ -85,7 +90,48 @@ impl ClusterClient {
         Ok(())
     }
 
-    pub async fn send(&self, command: &Command) -> Result<Vec<u8>, SystemError> {
+    pub async fn poll_messages(
+        &self,
+        offset: u64,
+        count: u64,
+    ) -> Result<Vec<Message>, SystemError> {
+        let command = PollMessages::new_command(offset, count);
+        let bytes = self.send(&command).await?;
+        let mut messages = Vec::new();
+        let mut position = 0;
+        while position < bytes.len() {
+            let offset = u64::from_le_bytes(bytes[position..position + 8].try_into().unwrap());
+            let id = u64::from_le_bytes(bytes[position + 8..position + 16].try_into().unwrap());
+            let payload_length =
+                u32::from_le_bytes(bytes[position + 16..position + 20].try_into().unwrap());
+            let payload =
+                Bytes::from(bytes[position + 20..position + 20 + payload_length as usize].to_vec());
+            position += 20 + payload_length as usize;
+            let message = Message {
+                offset,
+                id,
+                payload,
+            };
+            messages.push(message);
+        }
+        Ok(messages)
+    }
+
+    pub async fn ping(&self) -> Result<(), SystemError> {
+        self.send(&Ping::new_command()).await?;
+        Ok(())
+    }
+
+    pub async fn append_messages(
+        &self,
+        messages: Vec<AppendableMessage>,
+    ) -> Result<(), SystemError> {
+        let command = AppendMessages::new_command(messages);
+        self.send(&command).await?;
+        Ok(())
+    }
+
+    async fn send(&self, command: &Command) -> Result<Vec<u8>, SystemError> {
         if self.clients.iter().all(|(_, client)| client.is_none()) {
             return Err(SystemError::UnhealthyCluster);
         }
