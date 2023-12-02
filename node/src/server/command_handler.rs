@@ -21,6 +21,12 @@ pub async fn handle(
         Command::Ping(_) => {
             ping_handler::handle(handler).await?;
         }
+        Command::GetMetadata(_) => {
+            get_metadata_handler::handle(handler, cluster).await?;
+        }
+        Command::CreateStream(command) => {
+            create_stream_handler::handle(handler, command, cluster).await?;
+        }
         Command::AppendMessages(command) => {
             append_messages_handler::handle(handler, command, cluster).await?;
         }

@@ -1,4 +1,6 @@
 pub mod append_messages_handler;
+pub mod create_stream_handler;
+pub mod get_metadata_handler;
 pub mod hello_handler;
 pub mod ping_handler;
 pub mod poll_messages_handler;

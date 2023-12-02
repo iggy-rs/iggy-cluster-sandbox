@@ -265,6 +265,14 @@ impl Cluster {
         self.secret == secret
     }
 
+    pub async fn verify_is_healthy(&self) -> Result<(), SystemError> {
+        if self.get_state().await != ClusterState::Healthy {
+            return Err(SystemError::UnhealthyCluster);
+        }
+
+        Ok(())
+    }
+
     pub async fn get_state(&self) -> ClusterState {
         *self.state.lock().await
     }

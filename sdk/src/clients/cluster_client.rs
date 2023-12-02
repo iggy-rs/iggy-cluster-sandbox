@@ -1,6 +1,7 @@
 use crate::clients::node_client::NodeClient;
 use crate::commands::append_messages::{AppendMessages, AppendableMessage};
 use crate::commands::command::Command;
+use crate::commands::get_metadata::GetMetadata;
 use crate::commands::ping::Ping;
 use crate::commands::poll_messages::PollMessages;
 use crate::error::SystemError;
@@ -127,6 +128,12 @@ impl ClusterClient {
         messages: Vec<AppendableMessage>,
     ) -> Result<(), SystemError> {
         let command = AppendMessages::new_command(messages);
+        self.send(&command).await?;
+        Ok(())
+    }
+
+    pub async fn get_metadata(&self) -> Result<(), SystemError> {
+        let command = GetMetadata::new_command();
         self.send(&command).await?;
         Ok(())
     }

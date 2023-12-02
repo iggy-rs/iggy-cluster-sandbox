@@ -1,4 +1,4 @@
-use crate::clusters::cluster::{Cluster, ClusterState};
+use crate::clusters::cluster::Cluster;
 use crate::connection::tcp_connection::TcpConnection;
 use sdk::bytes_serializable::BytesSerializable;
 use sdk::commands::poll_messages::PollMessages;
@@ -11,10 +11,7 @@ pub(crate) async fn handle(
     command: &PollMessages,
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {
-    if cluster.get_state().await != ClusterState::Healthy {
-        return Err(SystemError::UnhealthyCluster);
-    }
-
+    cluster.verify_is_healthy().await?;
     info!("Received an append messages command");
     let streamer = cluster.streamer.lock().await;
     let messages = streamer.poll_messages(command.offset, command.count)?;

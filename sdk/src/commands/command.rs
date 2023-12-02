@@ -1,5 +1,7 @@
 use crate::bytes_serializable::BytesSerializable;
 use crate::commands::append_messages::AppendMessages;
+use crate::commands::create_stream::CreateStream;
+use crate::commands::get_metadata::GetMetadata;
 use crate::commands::hello::Hello;
 use crate::commands::ping::Ping;
 use crate::commands::poll_messages::PollMessages;
@@ -10,6 +12,8 @@ use std::fmt::{Display, Formatter};
 
 const HELLO_CODE: u32 = 1;
 const PING_CODE: u32 = 2;
+const GET_METADATA_CODE: u32 = 3;
+const CREATE_STREAM_CODE: u32 = 10;
 const APPEND_MESSAGES_CODE: u32 = 20;
 const POLL_MESSAGES_CODE: u32 = 30;
 const SYNC_MESSAGES_CODE: u32 = 1100;
@@ -18,6 +22,8 @@ const SYNC_MESSAGES_CODE: u32 = 1100;
 pub enum Command {
     Hello(Hello),
     Ping(Ping),
+    GetMetadata(GetMetadata),
+    CreateStream(CreateStream),
     AppendMessages(AppendMessages),
     PollMessages(PollMessages),
     SyncMessages(SyncMessages),
@@ -28,6 +34,8 @@ impl Command {
         match self {
             Command::Hello(_) => "hello",
             Command::Ping(_) => "ping",
+            Command::GetMetadata(_) => "get_metadata",
+            Command::CreateStream(_) => "create_stream",
             Command::AppendMessages(_) => "append_messages",
             Command::PollMessages(_) => "poll_messages",
             Command::SyncMessages(_) => "sync_messages",
@@ -38,6 +46,8 @@ impl Command {
         match self {
             Command::Hello(command) => to_bytes(HELLO_CODE, command),
             Command::Ping(command) => to_bytes(PING_CODE, command),
+            Command::GetMetadata(command) => to_bytes(GET_METADATA_CODE, command),
+            Command::CreateStream(command) => to_bytes(APPEND_MESSAGES_CODE, command),
             Command::AppendMessages(command) => to_bytes(APPEND_MESSAGES_CODE, command),
             Command::PollMessages(command) => to_bytes(POLL_MESSAGES_CODE, command),
             Command::SyncMessages(command) => to_bytes(SYNC_MESSAGES_CODE, command),
@@ -51,6 +61,8 @@ impl Command {
         match code {
             HELLO_CODE => Ok(Command::Hello(Hello::from_bytes(bytes)?)),
             PING_CODE => Ok(Command::Ping(Ping::from_bytes(bytes)?)),
+            GET_METADATA_CODE => Ok(Command::GetMetadata(GetMetadata::from_bytes(bytes)?)),
+            CREATE_STREAM_CODE => Ok(Command::CreateStream(CreateStream::from_bytes(bytes)?)),
             APPEND_MESSAGES_CODE => Ok(Command::AppendMessages(AppendMessages::from_bytes(bytes)?)),
             POLL_MESSAGES_CODE => Ok(Command::PollMessages(PollMessages::from_bytes(bytes)?)),
             SYNC_MESSAGES_CODE => Ok(Command::SyncMessages(SyncMessages::from_bytes(bytes)?)),
@@ -73,6 +85,10 @@ impl Display for Command {
         match self {
             Command::Hello(hello) => write!(f, "Hello from: {}", hello.name),
             Command::Ping(_) => write!(f, "Ping"),
+            Command::GetMetadata(_) => write!(f, "Get metadata"),
+            Command::CreateStream(create_stream) => {
+                write!(f, "Create stream: {}", create_stream.name)
+            }
             Command::AppendMessages(append_data) => {
                 write!(f, "Append messages: {:?}", append_data.messages)
             }
