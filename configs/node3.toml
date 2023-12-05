@@ -5,20 +5,23 @@ path = "local_data/node3/streams"
 address = "0.0.0.0:8103"
 
 [node]
+id = 3
 name = "node3"
 address = "0.0.0.0:8203"
 
 [cluster]
 max_timeout = 1000
-healthcheck_interval = 3000
+heartbeat_interval = 3000
 reconnection_interval = 1000
 reconnection_retries = 10
 secret = "secret123!"
 
 [[cluster.nodes]]
+id = 1
 name = "node1"
 address = "0.0.0.0:8201"
 
 [[cluster.nodes]]
+id = 2
 name = "node2"
 address = "0.0.0.0:8202"

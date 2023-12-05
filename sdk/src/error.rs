@@ -32,8 +32,8 @@ pub enum SystemError {
     SendRequestFailed,
     #[error("Invalid command")]
     InvalidCommand,
-    #[error("Invalid node: {0}")]
-    InvalidNode(String),
+    #[error("Invalid node with ID: {0}")]
+    InvalidNode(u64),
     #[error("Cannot append message")]
     CannotAppendMessage,
     #[error("Cannot send command")]

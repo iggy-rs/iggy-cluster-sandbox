@@ -6,40 +6,43 @@ use tracing::{error, info};
 
 #[derive(Debug)]
 pub struct Node {
+    pub id: u64,
     pub name: String,
     pub address: String,
-    healthcheck: NodeHealthcheck,
-    is_self: bool,
+    heartbeat: NodeHeartbeat,
+    pub is_self: bool,
     client: NodeClient,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Resiliency {
+    pub heartbeat_interval: u64,
     pub reconnection_retries: u32,
     pub reconnection_interval: u64,
 }
 
 #[derive(Debug)]
-pub struct NodeHealthcheck {
+pub struct NodeHeartbeat {
     pub interval: Duration,
 }
 
 impl Node {
     pub fn new(
+        id: u64,
         secret: &str,
         name: &str,
         self_name: &str,
         address: &str,
         is_self: bool,
-        healthcheck_interval: u64,
         resiliency: Resiliency,
     ) -> Result<Self, SystemError> {
-        let client = NodeClient::new(secret, self_name, address, resiliency)?;
+        let client = NodeClient::new(id, secret, self_name, address, resiliency)?;
         Ok(Self {
+            id,
             name: name.to_string(),
             address: address.to_string(),
-            healthcheck: NodeHealthcheck {
-                interval: Duration::from_millis(healthcheck_interval),
+            heartbeat: NodeHeartbeat {
+                interval: Duration::from_millis(resiliency.heartbeat_interval),
             },
             is_self,
             client,
@@ -61,7 +64,7 @@ impl Node {
 
         info!("Starting healthcheck for cluster node: {}...", self.name);
         loop {
-            sleep(self.healthcheck.interval).await;
+            sleep(self.heartbeat.interval).await;
             let ping = self.client.ping().await;
             if ping.is_ok() {
                 info!("Healthcheck passed for cluster node: {}", self.name);

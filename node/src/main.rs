@@ -27,6 +27,7 @@ async fn main() -> Result<(), SystemError> {
     let mut streamer = Streamer::new(&system_config.stream.path);
     streamer.init().await;
     let cluster = Cluster::new(
+        system_config.node.id,
         &system_config.node.name,
         &system_config.node.address,
         &system_config.cluster,
@@ -37,6 +38,7 @@ async fn main() -> Result<(), SystemError> {
     public_server::start(&system_config.server.address, cluster.clone());
     cluster.connect().await?;
     cluster.start_healthcheck()?;
+    cluster.start_election().await?;
     info!("Press CTRL+C shutdown Iggy node...");
     CtrlC::new().unwrap().await;
     cluster.disconnect().await?;

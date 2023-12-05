@@ -26,6 +26,7 @@ pub enum HealthState {
 
 #[derive(Debug)]
 pub struct NodeClient {
+    pub id: u64,
     pub secret: String,
     pub self_name: String,
     pub address: SocketAddr,
@@ -37,6 +38,7 @@ pub struct NodeClient {
 
 impl NodeClient {
     pub fn new(
+        id: u64,
         secret: &str,
         self_name: &str,
         address: &str,
@@ -51,6 +53,7 @@ impl NodeClient {
         }
 
         Ok(Self {
+            id,
             secret: secret.to_string(),
             self_name: self_name.to_string(),
             address: address.unwrap(),
@@ -114,6 +117,7 @@ impl NodeClient {
         self.send_request(&Hello::new_command(
             self.secret.clone(),
             self.self_name.clone(),
+            self.id,
         ))
         .await?;
         info!("Sent hello message to cluster node: {}", self.address);

@@ -21,6 +21,7 @@ pub(crate) struct ServerConfig {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct NodeConfig {
+    pub id: u64,
     pub name: String,
     pub address: String,
 }
@@ -28,7 +29,7 @@ pub(crate) struct NodeConfig {
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct ClusterConfig {
     pub max_timeout: u32,
-    pub healthcheck_interval: u64,
+    pub heartbeat_interval: u64,
     pub reconnection_interval: u64,
     pub reconnection_retries: u32,
     pub secret: String,
@@ -37,6 +38,7 @@ pub(crate) struct ClusterConfig {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct ClusterNodeConfig {
+    pub id: u64,
     pub name: String,
     pub address: String,
 }
@@ -60,6 +62,7 @@ impl Default for ServerConfig {
 impl Default for NodeConfig {
     fn default() -> Self {
         Self {
+            id: 1,
             name: "node".to_string(),
             address: "0.0.0.0:8201".to_string(),
         }
@@ -70,7 +73,7 @@ impl Default for ClusterConfig {
     fn default() -> Self {
         Self {
             max_timeout: 1000,
-            healthcheck_interval: 3000,
+            heartbeat_interval: 3000,
             reconnection_interval: 1000,
             reconnection_retries: 10,
             secret: "secret123!".to_string(),

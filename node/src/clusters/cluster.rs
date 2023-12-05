@@ -1,3 +1,4 @@
+use crate::clusters::election::Election;
 use crate::clusters::node::{Node, Resiliency};
 use crate::configs::config::ClusterConfig;
 use crate::streaming::streamer::Streamer;
@@ -19,18 +20,20 @@ pub struct Cluster {
     pub nodes: Vec<Rc<ClusterNode>>,
     pub streamer: Mutex<Streamer>,
     pub secret: String,
+    pub election: Election,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum ClusterNodeRole {
     Leader,
+    Candidate,
     Follower,
 }
 
 #[derive(Debug)]
 pub(crate) struct ClusterNode {
     pub state: Mutex<ClusterNodeState>,
-    pub role: ClusterNodeRole,
+    pub role: Mutex<ClusterNodeRole>,
     pub node: Node,
 }
 
@@ -45,6 +48,7 @@ impl Display for ClusterNodeRole {
         match self {
             ClusterNodeRole::Leader => write!(f, "leader"),
             ClusterNodeRole::Follower => write!(f, "follower"),
+            ClusterNodeRole::Candidate => write!(f, "candidate"),
         }
     }
 }
@@ -60,6 +64,7 @@ impl Display for ClusterNodeState {
 
 impl Cluster {
     pub fn new(
+        self_id: u64,
         self_name: &str,
         self_address: &str,
         config: &ClusterConfig,
@@ -68,8 +73,9 @@ impl Cluster {
         let mut nodes = Vec::new();
         nodes.push(Rc::new(ClusterNode {
             state: Mutex::new(ClusterNodeState::Connected),
-            role: ClusterNodeRole::Leader,
+            role: Mutex::new(ClusterNodeRole::Leader),
             node: Self::create_node(
+                self_id,
                 &config.secret,
                 self_name,
                 self_name,
@@ -80,9 +86,10 @@ impl Cluster {
         }));
         for node in &config.nodes {
             let cluster_node = ClusterNode {
-                role: ClusterNodeRole::Follower,
+                role: Mutex::new(ClusterNodeRole::Follower),
                 state: Mutex::new(ClusterNodeState::Disconnected),
                 node: Self::create_node(
+                    node.id,
                     &config.secret,
                     &node.name,
                     self_name,
@@ -99,10 +106,12 @@ impl Cluster {
             nodes,
             streamer: Mutex::new(streamer),
             secret: config.secret.to_string(),
+            election: Election::new(),
         })
     }
 
     fn create_node(
+        id: u64,
         secret: &str,
         node_name: &str,
         self_name: &str,
@@ -111,17 +120,25 @@ impl Cluster {
         config: &ClusterConfig,
     ) -> Result<Node, SystemError> {
         Node::new(
+            id,
             secret,
             node_name,
             self_name,
             node_address,
             is_self,
-            config.healthcheck_interval,
             Resiliency {
+                heartbeat_interval: config.heartbeat_interval,
                 reconnection_retries: config.reconnection_retries,
                 reconnection_interval: config.reconnection_interval,
             },
         )
+    }
+
+    pub async fn start_election(&self) -> Result<(), SystemError> {
+        info!("Starting election...");
+        let node = self.get_self_node().unwrap();
+        *node.role.lock().await = ClusterNodeRole::Candidate;
+        Ok(())
     }
 
     pub async fn connect(&self) -> Result<(), SystemError> {
@@ -159,35 +176,45 @@ impl Cluster {
         Ok(())
     }
 
-    pub async fn connect_to(&self, node_name: &str) -> Result<(), SystemError> {
+    pub async fn connect_to(&self, node_id: u64) -> Result<(), SystemError> {
         let cluster_node = self
             .nodes
             .iter()
-            .find(|cluster_node| cluster_node.node.name == node_name);
+            .find(|cluster_node| cluster_node.node.id == node_id);
         if cluster_node.is_none() {
-            return Err(SystemError::InvalidNode(node_name.to_string()));
+            return Err(SystemError::InvalidNode(node_id));
         }
 
         Self::connect_to_node(cluster_node.unwrap()).await
     }
 
+    fn get_self_node(&self) -> Option<Rc<ClusterNode>> {
+        self.nodes
+            .iter()
+            .find(|cluster_node| cluster_node.node.is_self)
+            .cloned()
+    }
+
     async fn connect_to_node(cluster_node: &ClusterNode) -> Result<(), SystemError> {
         info!(
-            "Connecting to cluster node: {}, role: {}",
-            cluster_node.node.name, cluster_node.role
+            "Connecting to cluster node: {}, ID: {}...",
+            cluster_node.node.name, cluster_node.node.id
         );
         if cluster_node.node.connect().await.is_err() {
             *cluster_node.state.lock().await = ClusterNodeState::Disconnected;
             error!(
-                "Failed to connect to cluster node: {}",
-                cluster_node.node.name
+                "Failed to connect to cluster node: {}, ID: {}",
+                cluster_node.node.name, cluster_node.node.id
             );
             return Err(SystemError::CannotConnectToClusterNode(
                 cluster_node.node.address.to_string(),
             ));
         }
         *cluster_node.state.lock().await = ClusterNodeState::Connected;
-        info!("Connected to cluster node: {}", cluster_node.node.name);
+        info!(
+            "Connected to cluster node: {}, ID: {}",
+            cluster_node.node.name, cluster_node.node.id
+        );
         Ok(())
     }
 
@@ -210,14 +237,14 @@ impl Cluster {
         Ok(())
     }
 
-    pub fn start_healthcheck_for(&self, node_name: &str) -> Result<(), SystemError> {
-        info!("Starting healthcheck for node: {node_name}...");
+    pub fn start_heartbeat_for(&self, node_id: u64) -> Result<(), SystemError> {
+        info!("Starting heartbeat for node ID: {node_id}...");
         let cluster_node = self
             .nodes
             .iter()
-            .find(|cluster_node| cluster_node.node.name == node_name);
+            .find(|cluster_node| cluster_node.node.id == node_id);
         if cluster_node.is_none() {
-            return Err(SystemError::InvalidNode(node_name.to_string()));
+            return Err(SystemError::InvalidNode(node_id));
         }
 
         Self::start_healthcheck_for_node(cluster_node.unwrap().clone())
@@ -251,9 +278,9 @@ impl Cluster {
         Ok(())
     }
 
-    pub async fn is_connected_to(&self, node_name: &str) -> bool {
+    pub async fn is_connected_to(&self, node_id: u64) -> bool {
         for cluster_node in &self.nodes {
-            if cluster_node.node.name == node_name {
+            if cluster_node.node.id == node_id {
                 return cluster_node.node.is_connected().await;
             }
         }

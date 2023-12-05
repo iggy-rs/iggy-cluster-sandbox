@@ -9,6 +9,7 @@ use std::fs::create_dir_all;
 use std::path::Path;
 use tracing::{error, info};
 
+const EMPTY_MESSAGES: &[Message] = &[];
 const LOG_FILE: &str = "stream.log";
 
 #[derive(Debug)]
@@ -111,6 +112,10 @@ impl Streamer {
     }
 
     pub fn poll_messages(&self, offset: u64, count: u64) -> Result<&[Message], SystemError> {
+        if self.messages.is_empty() {
+            return Ok(EMPTY_MESSAGES);
+        }
+
         if offset > self.current_offset {
             return Err(SystemError::InvalidOffset);
         }
