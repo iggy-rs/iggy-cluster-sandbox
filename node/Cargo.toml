@@ -21,6 +21,7 @@ tracing-subscriber = { version = "0.3.17", features = ["fmt"] }
 tracing-appender = "0.2.2"
 monoio = { version = "0.2.0", features = ["async-cancel", "sync", "signal", "tracing", "zero-copy", "bytes", "iouring", "legacy", "macros", "utils"] }
 sdk = { path = "../sdk" }
+rand = "0.8.5"
 
 [[bin]]
 name = "iggy-node"

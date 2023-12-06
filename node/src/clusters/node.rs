@@ -57,21 +57,21 @@ impl Node {
         self.client.connect().await
     }
 
-    pub async fn start_healthcheck(&self) -> Result<(), SystemError> {
+    pub async fn start_heartbeat(&self) -> Result<(), SystemError> {
         if self.is_self {
             return Ok(());
         }
 
-        info!("Starting healthcheck for cluster node: {}...", self.name);
+        info!("Starting heartbeat for cluster node: {}...", self.name);
         loop {
             sleep(self.heartbeat.interval).await;
             let ping = self.client.ping().await;
             if ping.is_ok() {
-                info!("Healthcheck passed for cluster node: {}", self.name);
+                info!("Heartbeat passed for cluster node: {}", self.name);
                 continue;
             }
 
-            error!("Healthcheck failed for cluster node: {}", self.name);
+            error!("Heartbeat failed for cluster node: {}", self.name);
             let error = ping.unwrap_err();
             match error {
                 SystemError::SendRequestFailed => {
@@ -91,7 +91,7 @@ impl Node {
                 }
                 _ => {
                     error!(
-                        "Cluster node healthcheck failed: {}. cannot recover.",
+                        "Cluster node heartbeat failed: {}. cannot recover.",
                         self.name
                     );
                     return Err(error);

@@ -1,4 +1,4 @@
-use crate::clusters::election::Election;
+use crate::clusters::election::ElectionManager;
 use crate::clusters::node::{Node, Resiliency};
 use crate::configs::config::ClusterConfig;
 use crate::streaming::streamer::Streamer;
@@ -20,11 +20,11 @@ pub struct Cluster {
     pub nodes: Vec<Rc<ClusterNode>>,
     pub streamer: Mutex<Streamer>,
     pub secret: String,
-    pub election: Election,
+    pub election_manager: ElectionManager,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum ClusterNodeRole {
+pub enum ClusterNodeState {
     Leader,
     Candidate,
     Follower,
@@ -32,32 +32,32 @@ pub enum ClusterNodeRole {
 
 #[derive(Debug)]
 pub(crate) struct ClusterNode {
+    pub connection_status: Mutex<ClusterNodeConnectionStatus>,
     pub state: Mutex<ClusterNodeState>,
-    pub role: Mutex<ClusterNodeRole>,
     pub node: Node,
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum ClusterNodeState {
+pub(crate) enum ClusterNodeConnectionStatus {
     Connected,
     Disconnected,
-}
-
-impl Display for ClusterNodeRole {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ClusterNodeRole::Leader => write!(f, "leader"),
-            ClusterNodeRole::Follower => write!(f, "follower"),
-            ClusterNodeRole::Candidate => write!(f, "candidate"),
-        }
-    }
 }
 
 impl Display for ClusterNodeState {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ClusterNodeState::Connected => write!(f, "connected"),
-            ClusterNodeState::Disconnected => write!(f, "disconnected"),
+            ClusterNodeState::Leader => write!(f, "leader"),
+            ClusterNodeState::Follower => write!(f, "follower"),
+            ClusterNodeState::Candidate => write!(f, "candidate"),
+        }
+    }
+}
+
+impl Display for ClusterNodeConnectionStatus {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClusterNodeConnectionStatus::Connected => write!(f, "connected"),
+            ClusterNodeConnectionStatus::Disconnected => write!(f, "disconnected"),
         }
     }
 }
@@ -72,8 +72,8 @@ impl Cluster {
     ) -> Result<Self, SystemError> {
         let mut nodes = Vec::new();
         nodes.push(Rc::new(ClusterNode {
-            state: Mutex::new(ClusterNodeState::Connected),
-            role: Mutex::new(ClusterNodeRole::Leader),
+            connection_status: Mutex::new(ClusterNodeConnectionStatus::Connected),
+            state: Mutex::new(ClusterNodeState::Leader),
             node: Self::create_node(
                 self_id,
                 &config.secret,
@@ -86,8 +86,8 @@ impl Cluster {
         }));
         for node in &config.nodes {
             let cluster_node = ClusterNode {
-                role: Mutex::new(ClusterNodeRole::Follower),
-                state: Mutex::new(ClusterNodeState::Disconnected),
+                state: Mutex::new(ClusterNodeState::Follower),
+                connection_status: Mutex::new(ClusterNodeConnectionStatus::Disconnected),
                 node: Self::create_node(
                     node.id,
                     &config.secret,
@@ -106,7 +106,7 @@ impl Cluster {
             nodes,
             streamer: Mutex::new(streamer),
             secret: config.secret.to_string(),
-            election: Election::new(),
+            election_manager: ElectionManager::new(self_id),
         })
     }
 
@@ -135,9 +135,14 @@ impl Cluster {
     }
 
     pub async fn start_election(&self) -> Result<(), SystemError> {
-        info!("Starting election...");
-        let node = self.get_self_node().unwrap();
-        *node.role.lock().await = ClusterNodeRole::Candidate;
+        let self_node = self.get_self_node();
+        if self_node.is_none() {
+            return Err(SystemError::UnhealthyCluster);
+        }
+
+        let node_state = self.election_manager.start_election().await;
+        let self_node = self_node.unwrap();
+        *self_node.state.lock().await = node_state;
         Ok(())
     }
 
@@ -201,7 +206,8 @@ impl Cluster {
             cluster_node.node.name, cluster_node.node.id
         );
         if cluster_node.node.connect().await.is_err() {
-            *cluster_node.state.lock().await = ClusterNodeState::Disconnected;
+            *cluster_node.connection_status.lock().await =
+                ClusterNodeConnectionStatus::Disconnected;
             error!(
                 "Failed to connect to cluster node: {}, ID: {}",
                 cluster_node.node.name, cluster_node.node.id
@@ -210,7 +216,7 @@ impl Cluster {
                 cluster_node.node.address.to_string(),
             ));
         }
-        *cluster_node.state.lock().await = ClusterNodeState::Connected;
+        *cluster_node.connection_status.lock().await = ClusterNodeConnectionStatus::Connected;
         info!(
             "Connected to cluster node: {}, ID: {}",
             cluster_node.node.name, cluster_node.node.id
@@ -218,22 +224,22 @@ impl Cluster {
         Ok(())
     }
 
-    pub fn start_healthcheck(&self) -> Result<(), SystemError> {
+    pub fn start_heartbeat(&self) -> Result<(), SystemError> {
         info!(
-            "Starting healthcheck for all cluster nodes {}...",
+            "Starting heartbeat for all cluster nodes {}...",
             self.nodes.len()
         );
         for cluster_node in &self.nodes {
             let node_name = cluster_node.node.name.clone();
             let cluster_node = cluster_node.clone();
-            Self::start_healthcheck_for_node(cluster_node).unwrap_or_else(|error| {
+            Self::start_heartbeat_for_node(cluster_node).unwrap_or_else(|error| {
                 error!(
-                    "Failed to start healthcheck for cluster node: {node_name}, error: {}",
+                    "Failed to start heartbeat for cluster node: {node_name}, error: {}",
                     error
                 );
             });
         }
-        info!("Healthcheck for all cluster nodes started.");
+        info!("Heartbeat for all cluster nodes started.");
         Ok(())
     }
 
@@ -247,23 +253,25 @@ impl Cluster {
             return Err(SystemError::InvalidNode(node_id));
         }
 
-        Self::start_healthcheck_for_node(cluster_node.unwrap().clone())
+        Self::start_heartbeat_for_node(cluster_node.unwrap().clone())
     }
 
-    fn start_healthcheck_for_node(cluster_node: Rc<ClusterNode>) -> Result<(), SystemError> {
+    fn start_heartbeat_for_node(cluster_node: Rc<ClusterNode>) -> Result<(), SystemError> {
+        let node_id = cluster_node.node.id;
         let node_name = cluster_node.node.name.clone();
-        info!("Starting healthcheck for node: {node_name}...");
+        info!("Starting heartbeat for node: {node_name}, ID: {node_id}, ...");
         monoio::spawn(async move {
-            if cluster_node.node.start_healthcheck().await.is_err() {
-                *cluster_node.state.lock().await = ClusterNodeState::Disconnected;
+            if cluster_node.node.start_heartbeat().await.is_err() {
+                *cluster_node.connection_status.lock().await =
+                    ClusterNodeConnectionStatus::Disconnected;
                 error!(
-                    "Failed to start healthcheck for cluster node: {}",
+                    "Failed to start heartbeat for cluster node: {}, ID: {node_id}.",
                     cluster_node.node.name
                 );
             }
         });
 
-        info!("Healthcheck for node: {node_name} started.");
+        info!("Heartbeat for node: {node_name}, ID: {node_id}, started.");
         Ok(())
     }
 
@@ -271,7 +279,8 @@ impl Cluster {
         info!("Disconnecting all cluster nodes...");
         for cluster_node in &self.nodes {
             cluster_node.node.disconnect().await?;
-            *cluster_node.state.lock().await = ClusterNodeState::Disconnected;
+            *cluster_node.connection_status.lock().await =
+                ClusterNodeConnectionStatus::Disconnected;
         }
         self.set_state(ClusterState::Uninitialized).await;
         info!("All cluster nodes disconnected.");
