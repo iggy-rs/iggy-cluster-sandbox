@@ -1,2 +1,2 @@
 pub mod message;
-mod metadata;
+pub mod metadata;

@@ -4,6 +4,7 @@ use crate::configs::config::ClusterConfig;
 use crate::streaming::streamer::Streamer;
 use futures::lock::Mutex;
 use sdk::error::SystemError;
+use sdk::models::metadata::{Metadata, NodeInfo, StreamInfo};
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use tracing::{error, info};
@@ -307,6 +308,36 @@ impl Cluster {
         }
 
         Ok(())
+    }
+
+    pub async fn get_metadata(&self) -> Metadata {
+        let mut metadata = Metadata {
+            nodes: Vec::new(),
+            streams: Vec::new(),
+        };
+        metadata.nodes = self
+            .nodes
+            .iter()
+            .map(|node| NodeInfo {
+                id: node.node.id,
+                name: node.node.name.clone(),
+                address: node.node.address.clone(),
+            })
+            .collect();
+        let mut leader_id = 0;
+        for node in &self.nodes {
+            if *node.state.lock().await == ClusterNodeState::Leader {
+                leader_id = node.node.id;
+                break;
+            }
+        }
+
+        metadata.streams.push(StreamInfo {
+            id: 1,
+            name: "stream".to_string(),
+            leader_id,
+        });
+        metadata
     }
 
     pub async fn get_state(&self) -> ClusterState {

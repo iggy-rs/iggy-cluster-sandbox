@@ -1,3 +1,4 @@
+use crate::bytes_serializable::BytesSerializable;
 use crate::clients::node_client::NodeClient;
 use crate::commands::append_messages::{AppendMessages, AppendableMessage};
 use crate::commands::command::Command;
@@ -6,6 +7,7 @@ use crate::commands::ping::Ping;
 use crate::commands::poll_messages::PollMessages;
 use crate::error::SystemError;
 use crate::models::message::Message;
+use crate::models::metadata::Metadata;
 use bytes::Bytes;
 use futures::lock::Mutex;
 use monoio::time::sleep;
@@ -132,10 +134,11 @@ impl ClusterClient {
         Ok(())
     }
 
-    pub async fn get_metadata(&self) -> Result<(), SystemError> {
+    pub async fn get_metadata(&self) -> Result<Metadata, SystemError> {
         let command = GetMetadata::new_command();
-        self.send(&command).await?;
-        Ok(())
+        let bytes = self.send(&command).await?;
+        let metadata = Metadata::from_bytes(&bytes)?;
+        Ok(metadata)
     }
 
     async fn send(&self, command: &Command) -> Result<Vec<u8>, SystemError> {

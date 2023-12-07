@@ -1,5 +1,6 @@
 use crate::clusters::cluster::Cluster;
 use crate::connection::tcp_connection::TcpConnection;
+use sdk::bytes_serializable::BytesSerializable;
 use sdk::error::SystemError;
 use std::rc::Rc;
 
@@ -8,6 +9,7 @@ pub(crate) async fn handle(
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {
     cluster.verify_is_healthy().await?;
-    handler.send_empty_ok_response().await?;
+    let metadata = cluster.get_metadata().await;
+    handler.send_ok_response(&metadata.as_bytes()).await?;
     Ok(())
 }
