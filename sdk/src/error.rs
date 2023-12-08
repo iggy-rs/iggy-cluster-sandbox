@@ -46,6 +46,8 @@ pub enum SystemError {
     InvalidOffset,
     #[error("Invalid count")]
     InvalidCount,
+    #[error("Invalid stream ID")]
+    InvalidStreamId,
 }
 
 impl SystemError {
@@ -72,6 +74,7 @@ impl SystemError {
             SystemError::ErrorResponse(_) => 19,
             SystemError::InvalidOffset => 20,
             SystemError::InvalidCount => 21,
+            SystemError::InvalidStreamId => 22,
         }
     }
 }

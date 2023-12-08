@@ -14,7 +14,7 @@ pub(crate) async fn handle(
     cluster.verify_is_healthy().await?;
     info!("Received an append messages command");
     let streamer = cluster.streamer.lock().await;
-    let messages = streamer.poll_messages(command.offset, command.count)?;
+    let messages = streamer.poll_messages(command.stream_id, command.offset, command.count)?;
     let mut bytes: Vec<u8> = Vec::new();
     for message in messages {
         bytes.extend(&message.as_bytes());

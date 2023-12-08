@@ -2,6 +2,7 @@ use crate::bytes_serializable::BytesSerializable;
 use crate::clients::node_client::NodeClient;
 use crate::commands::append_messages::{AppendMessages, AppendableMessage};
 use crate::commands::command::Command;
+use crate::commands::create_stream::CreateStream;
 use crate::commands::get_metadata::GetMetadata;
 use crate::commands::ping::Ping;
 use crate::commands::poll_messages::PollMessages;
@@ -95,10 +96,11 @@ impl ClusterClient {
 
     pub async fn poll_messages(
         &self,
+        stream_id: u64,
         offset: u64,
         count: u64,
     ) -> Result<Vec<Message>, SystemError> {
-        let command = PollMessages::new_command(offset, count);
+        let command = PollMessages::new_command(stream_id, offset, count);
         let bytes = self.send(&command).await?;
         let mut messages = Vec::new();
         let mut position = 0;
@@ -125,11 +127,18 @@ impl ClusterClient {
         Ok(())
     }
 
+    pub async fn create_stream(&self, stream_id: u64) -> Result<(), SystemError> {
+        let command = CreateStream::new_command(stream_id);
+        self.send(&command).await?;
+        Ok(())
+    }
+
     pub async fn append_messages(
         &self,
+        stream_id: u64,
         messages: Vec<AppendableMessage>,
     ) -> Result<(), SystemError> {
-        let command = AppendMessages::new_command(messages);
+        let command = AppendMessages::new_command(stream_id, messages);
         self.send(&command).await?;
         Ok(())
     }

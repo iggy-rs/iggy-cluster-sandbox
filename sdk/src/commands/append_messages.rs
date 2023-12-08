@@ -5,6 +5,7 @@ use bytes::{BufMut, Bytes};
 
 #[derive(Debug)]
 pub struct AppendMessages {
+    pub stream_id: u64,
     pub messages: Vec<AppendableMessage>,
 }
 
@@ -15,8 +16,11 @@ pub struct AppendableMessage {
 }
 
 impl AppendMessages {
-    pub fn new_command(messages: Vec<AppendableMessage>) -> Command {
-        Command::AppendMessages(AppendMessages { messages })
+    pub fn new_command(stream_id: u64, messages: Vec<AppendableMessage>) -> Command {
+        Command::AppendMessages(AppendMessages {
+            stream_id,
+            messages,
+        })
     }
 }
 
@@ -44,6 +48,7 @@ impl BytesSerializable for AppendableMessage {
 impl BytesSerializable for AppendMessages {
     fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
+        bytes.put_u64_le(self.stream_id);
         for message in &self.messages {
             bytes.extend(&message.as_bytes());
         }
@@ -55,14 +60,18 @@ impl BytesSerializable for AppendMessages {
             return Err(SystemError::InvalidCommand);
         }
 
+        let stream_id = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
         let mut messages = Vec::new();
-        let mut position = 0;
+        let mut position = 8;
         while position < bytes.len() {
             let message = AppendableMessage::from_bytes(&bytes[position..])?;
             position += 12 + message.payload.len();
             messages.push(message);
         }
 
-        Ok(AppendMessages { messages })
+        Ok(AppendMessages {
+            stream_id,
+            messages,
+        })
     }
 }

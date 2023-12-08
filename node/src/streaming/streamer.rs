@@ -4,10 +4,11 @@ use bytes::Bytes;
 use sdk::bytes_serializable::BytesSerializable;
 use sdk::commands::append_messages::AppendMessages;
 use sdk::error::SystemError;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::fs::create_dir_all;
 use std::path::Path;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 const EMPTY_MESSAGES: &[Message] = &[];
 const LOG_FILE: &str = "stream.log";
@@ -15,18 +16,27 @@ const LOG_FILE: &str = "stream.log";
 #[derive(Debug)]
 pub(crate) struct Streamer {
     path: String,
-    stream_path: String,
+    streams: HashMap<u64, Stream>,
+}
+
+#[derive(Debug)]
+pub(crate) struct Stream {
+    id: u64,
+    directory_path: String,
+    log_path: String,
     messages: Vec<Message>,
     current_offset: u64,
     current_position: u64,
     current_id: u64,
 }
 
-impl Streamer {
-    pub fn new(path: &str) -> Self {
+impl Stream {
+    pub fn new(id: u64, path: &str) -> Self {
+        let directory_path = format!("{path}/{id}");
         Self {
-            path: path.to_string(),
-            stream_path: format!("{}/{}", path, LOG_FILE),
+            id,
+            log_path: format!("{directory_path}/{LOG_FILE}"),
+            directory_path,
             messages: Vec::new(),
             current_offset: 0,
             current_position: 0,
@@ -35,17 +45,18 @@ impl Streamer {
     }
 
     pub async fn init(&mut self) {
-        if !Path::new(&self.path).exists() {
-            create_dir_all(&self.path)
-                .unwrap_or_else(|_| panic!("Failed to create stream directory: {}", self.path));
-            info!("Created stream directory: {}", self.path);
+        if !Path::new(&self.directory_path).exists() {
+            create_dir_all(&self.directory_path).unwrap_or_else(|_| {
+                panic!("Failed to create stream directory: {}", self.directory_path)
+            });
+            info!("Created stream directory: {}", self.directory_path);
         }
 
-        if !Path::new(&self.stream_path).exists() {
-            file::write(&self.stream_path)
+        if !Path::new(&self.log_path).exists() {
+            file::write(&self.log_path)
                 .await
-                .unwrap_or_else(|_| panic!("Failed to create stream file: {}", self.stream_path));
-            info!("Created empty stream file: {}", self.stream_path);
+                .unwrap_or_else(|_| panic!("Failed to create stream file: {}", self.log_path));
+            info!("Created empty stream file: {}", self.log_path);
         } else {
             let (messages, position) = self.load_messages_from_disk().await;
             if !messages.is_empty() {
@@ -57,88 +68,18 @@ impl Streamer {
         }
 
         info!(
-            "Initialized streamer, path: {}, messages count: {}",
-            self.stream_path,
+            "Initialized stream with ID: {}, path: {}, messages count: {}",
+            self.id,
+            self.log_path,
             self.messages.len()
         );
     }
 
-    pub async fn append_messages(
-        &mut self,
-        append_messages: &AppendMessages,
-    ) -> Result<(), SystemError> {
-        for message_to_append in &append_messages.messages {
-            if !self.messages.is_empty() {
-                self.current_offset += 1;
-            }
-
-            if message_to_append.id == 0 {
-                self.current_id += 1;
-            } else {
-                self.current_id = message_to_append.id;
-            }
-
-            let message = Message::new(
-                self.current_offset,
-                self.current_id,
-                message_to_append.payload.clone(),
-            );
-            let size = message.get_size();
-            let bytes = message.as_bytes();
-            self.messages.push(message);
-            let file = file::append(&self.stream_path)
-                .await
-                .unwrap_or_else(|_| panic!("Failed to open stream file: {}", self.stream_path));
-            let result = file.write_all_at(bytes, self.current_position).await;
-            if result.0.is_err() {
-                error!(
-                    "Failed to append message to stream file: {}",
-                    self.stream_path
-                );
-                return Err(SystemError::CannotAppendMessage);
-            }
-            self.current_position += size as u64;
-            if file.close().await.is_err() {
-                error!("Failed to close stream file: {}", self.stream_path);
-            }
-
-            info!(
-                "Appended message to stream file: {} at offset: {}, position: {}",
-                self.stream_path, self.current_offset, self.current_position
-            );
-        }
-
-        Ok(())
-    }
-
-    pub fn poll_messages(&self, offset: u64, count: u64) -> Result<&[Message], SystemError> {
-        if self.messages.is_empty() {
-            return Ok(EMPTY_MESSAGES);
-        }
-
-        if offset > self.current_offset {
-            return Err(SystemError::InvalidOffset);
-        }
-
-        if count == 0 {
-            return Err(SystemError::InvalidCount);
-        }
-
-        let start_offset = offset;
-        let mut end_offset = offset + count - 1;
-        if end_offset > self.current_offset {
-            end_offset = self.current_offset;
-        }
-
-        let messages = self.messages[start_offset as usize..=end_offset as usize].as_ref();
-        Ok(messages)
-    }
-
     pub async fn load_messages_from_disk(&self) -> (Vec<Message>, u64) {
         let mut messages = Vec::new();
-        let file = file::open(&self.stream_path)
+        let file = file::open(&self.log_path)
             .await
-            .unwrap_or_else(|_| panic!("Failed to read stream file: {}", self.stream_path));
+            .unwrap_or_else(|_| panic!("Failed to read stream file: {}", self.log_path));
 
         let mut position = 0u64;
         loop {
@@ -184,12 +125,138 @@ impl Streamer {
     }
 }
 
+impl Streamer {
+    pub fn new(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+            streams: HashMap::new(),
+        }
+    }
+
+    pub async fn create_stream(&mut self, id: u64) {
+        if self.streams.contains_key(&id) {
+            warn!("Stream: {id} already exists.");
+            return;
+        }
+
+        let mut stream = Stream::new(id, &self.path);
+        stream.init().await;
+        self.streams.insert(id, stream);
+    }
+
+    pub async fn init(&mut self) {
+        for stream in self.streams.values_mut() {
+            stream.init().await;
+        }
+    }
+
+    pub async fn append_messages(
+        &mut self,
+        append_messages: &AppendMessages,
+    ) -> Result<(), SystemError> {
+        let stream = self.streams.get_mut(&append_messages.stream_id);
+        if stream.is_none() {
+            return Err(SystemError::InvalidStreamId);
+        }
+
+        let stream = stream.unwrap();
+        for message_to_append in &append_messages.messages {
+            if !stream.messages.is_empty() {
+                stream.current_offset += 1;
+            }
+
+            if message_to_append.id == 0 {
+                stream.current_id += 1;
+            } else {
+                stream.current_id = message_to_append.id;
+            }
+
+            let message = Message::new(
+                stream.current_offset,
+                stream.current_id,
+                message_to_append.payload.clone(),
+            );
+            let size = message.get_size();
+            let bytes = message.as_bytes();
+            stream.messages.push(message);
+            let file = file::append(&stream.log_path)
+                .await
+                .unwrap_or_else(|_| panic!("Failed to open stream file: {}", &stream.log_path));
+            let result = file.write_all_at(bytes, stream.current_position).await;
+            if result.0.is_err() {
+                error!(
+                    "Failed to append message to stream file: {}",
+                    &stream.log_path
+                );
+                return Err(SystemError::CannotAppendMessage);
+            }
+            stream.current_position += size as u64;
+            if file.close().await.is_err() {
+                error!("Failed to close stream file: {}", &stream.log_path);
+            }
+
+            info!(
+                "Appended message to stream file: {} at offset: {}, position: {}",
+                &stream.log_path, stream.current_offset, stream.current_position
+            );
+        }
+
+        Ok(())
+    }
+
+    pub fn poll_messages(
+        &self,
+        stream_id: u64,
+        offset: u64,
+        count: u64,
+    ) -> Result<&[Message], SystemError> {
+        let stream = self.streams.get(&stream_id);
+        if stream.is_none() {
+            return Err(SystemError::InvalidStreamId);
+        }
+
+        let stream = stream.unwrap();
+        if stream.messages.is_empty() {
+            return Ok(EMPTY_MESSAGES);
+        }
+
+        if offset > stream.current_offset {
+            return Err(SystemError::InvalidOffset);
+        }
+
+        if count == 0 {
+            return Err(SystemError::InvalidCount);
+        }
+
+        let start_offset = offset;
+        let mut end_offset = offset + count - 1;
+        if end_offset > stream.current_offset {
+            end_offset = stream.current_offset;
+        }
+
+        let messages = stream.messages[start_offset as usize..=end_offset as usize].as_ref();
+        Ok(messages)
+    }
+}
+
 impl Display for Streamer {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Streamer {{ path: {}, messages: {} }}",
+            "Streamer {{ path: {}, streams: {} }}",
             self.path,
+            self.streams.len()
+        )
+    }
+}
+
+impl Display for Stream {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Stream {{ id: {}, path: {}, messages: {} }}",
+            self.id,
+            self.log_path,
             self.messages.len()
         )
     }
@@ -198,7 +265,6 @@ impl Display for Streamer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bytes::Bytes;
     use std::fs::remove_dir_all;
 
     const BASE_DIR: &str = "local_data";
@@ -220,9 +286,11 @@ mod tests {
     #[monoio::test]
     async fn messages_should_be_stored_on_disk() {
         let test = Test {};
+        let stream_id = 1;
         let mut streamer = Streamer::new(&test.streams_path());
-        streamer.init().await;
+        streamer.create_stream(stream_id).await;
         let append_messages = AppendMessages {
+            stream_id,
             messages: vec![
                 sdk::commands::append_messages::AppendableMessage {
                     id: 1,
@@ -240,7 +308,8 @@ mod tests {
         };
         let result = streamer.append_messages(&append_messages).await;
         assert!(result.is_ok());
-        let (loaded_messages, position) = streamer.load_messages_from_disk().await;
+        let stream = streamer.streams.get(&stream_id).unwrap();
+        let (loaded_messages, position) = stream.load_messages_from_disk().await;
         assert!(position > 0);
         assert_eq!(loaded_messages.len(), 3);
         let loaded_message1 = &loaded_messages[0];

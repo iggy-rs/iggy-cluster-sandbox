@@ -47,7 +47,7 @@ impl Command {
             Command::Hello(command) => to_bytes(HELLO_CODE, command),
             Command::Ping(command) => to_bytes(PING_CODE, command),
             Command::GetMetadata(command) => to_bytes(GET_METADATA_CODE, command),
-            Command::CreateStream(command) => to_bytes(APPEND_MESSAGES_CODE, command),
+            Command::CreateStream(command) => to_bytes(CREATE_STREAM_CODE, command),
             Command::AppendMessages(command) => to_bytes(APPEND_MESSAGES_CODE, command),
             Command::PollMessages(command) => to_bytes(POLL_MESSAGES_CODE, command),
             Command::SyncMessages(command) => to_bytes(SYNC_MESSAGES_CODE, command),
@@ -87,7 +87,7 @@ impl Display for Command {
             Command::Ping(_) => write!(f, "Ping"),
             Command::GetMetadata(_) => write!(f, "Get metadata"),
             Command::CreateStream(create_stream) => {
-                write!(f, "Create stream: {}", create_stream.name)
+                write!(f, "Create stream: {}", create_stream.id)
             }
             Command::AppendMessages(append_data) => {
                 write!(f, "Append messages: {:?}", append_data.messages)

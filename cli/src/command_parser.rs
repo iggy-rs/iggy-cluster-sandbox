@@ -20,14 +20,14 @@ pub(crate) fn parse(input: &str) -> Option<Command> {
 }
 
 fn parse_create_stream(input: &str) -> Command {
-    let parts = input.split(',').collect::<Vec<&str>>();
-    let id = parts[0].parse::<u64>().unwrap();
-    let name = parts[1].to_string();
-    CreateStream::new_command(id, name)
+    let id = input.parse::<u64>().unwrap();
+    CreateStream::new_command(id)
 }
 
 fn parse_append_messages(input: &str) -> Command {
-    let messages = input
+    let parts = input.split('|').collect::<Vec<&str>>();
+    let stream_id = parts[0].parse::<u64>().unwrap();
+    let messages = parts[1]
         .split(',')
         .map(|x| AppendableMessage {
             id: 0,
@@ -35,12 +35,13 @@ fn parse_append_messages(input: &str) -> Command {
         })
         .collect::<Vec<AppendableMessage>>();
 
-    AppendMessages::new_command(messages)
+    AppendMessages::new_command(stream_id, messages)
 }
 
 fn parse_poll_messages(input: &str) -> Command {
-    let parts = input.split(',').collect::<Vec<&str>>();
-    let offset = parts[0].parse::<u64>().unwrap();
-    let count = parts[1].parse::<u64>().unwrap();
-    PollMessages::new_command(offset, count)
+    let parts = input.split('|').collect::<Vec<&str>>();
+    let stream_id = parts[0].parse::<u64>().unwrap();
+    let offset = parts[1].parse::<u64>().unwrap();
+    let count = parts[2].parse::<u64>().unwrap();
+    PollMessages::new_command(stream_id, offset, count)
 }
