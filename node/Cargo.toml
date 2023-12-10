@@ -22,6 +22,7 @@ tracing-appender = "0.2.2"
 monoio = { version = "0.2.0", features = ["async-cancel", "sync", "signal", "tracing", "zero-copy", "bytes", "iouring", "legacy", "macros", "utils"] }
 sdk = { path = "../sdk" }
 rand = "0.8.5"
+config = { version = "0.13.4", features = [] }
 
 [[bin]]
 name = "iggy-node"

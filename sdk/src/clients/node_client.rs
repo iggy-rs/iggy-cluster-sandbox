@@ -9,19 +9,29 @@ const EMPTY_PAYLOAD: Vec<u8> = vec![];
 #[derive(Debug)]
 pub struct NodeClient {
     tcp_stream: TcpStream,
+    address: String,
 }
 
 impl NodeClient {
     pub async fn init(address: &str) -> Result<Self, SystemError> {
         let tcp_stream = TcpStream::connect(address).await?;
-        Ok(Self { tcp_stream })
+        Ok(Self {
+            tcp_stream,
+            address: address.to_string(),
+        })
     }
 
     pub async fn send(&mut self, command: &Command) -> Result<Vec<u8>, SystemError> {
-        info!("Sending command to Iggy node...");
+        info!(
+            "Sending command to Iggy node at address: {}...",
+            self.address
+        );
         let (result, _) = self.tcp_stream.write_all(command.as_bytes()).await;
         if result.is_err() {
-            error!("Failed to send command to Iggy node.");
+            error!(
+                "Failed to send command to Iggy node at address: {}.",
+                self.address
+            );
             return Err(SystemError::CannotSendCommand);
         }
 
@@ -36,7 +46,7 @@ impl NodeClient {
         let status = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
         let payload_length = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
         if status == 0 {
-            info!("Received OK response from Iggy node, payload length: {payload_length}.",);
+            info!("Received OK response from Iggy node at address: {}, payload length: {payload_length}.", self.address);
             if payload_length == 0 {
                 return Ok(EMPTY_PAYLOAD);
             }
@@ -51,7 +61,10 @@ impl NodeClient {
             return Ok(payload);
         }
 
-        error!("Received error response from Iggy node, status: {status}.");
+        error!(
+            "Received error response from Iggy node at address: {}, status: {status}.",
+            self.address
+        );
         Err(SystemError::ErrorResponse(status))
     }
 }

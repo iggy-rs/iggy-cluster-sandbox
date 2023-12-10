@@ -20,6 +20,7 @@ use tracing::{error, info};
 #[derive(Debug)]
 pub struct ClusterClient {
     clients: HashMap<String, Option<Rc<Mutex<NodeClient>>>>,
+    metadata: Option<Mutex<Metadata>>,
     reconnection_interval: u64,
     reconnection_retries: u32,
 }
@@ -33,6 +34,7 @@ impl ClusterClient {
         Self {
             reconnection_interval,
             reconnection_retries,
+            metadata: None,
             clients: addresses
                 .iter()
                 .map(|address| (address.to_string(), None))
@@ -90,7 +92,9 @@ impl ClusterClient {
                 .insert(address, Some(Rc::new(Mutex::new(client))));
         }
 
-        info!("Connected to Iggy cluster.");
+        info!("Connected to Iggy cluster, updating the metadata...");
+        self.update_metadata().await?;
+        info!("Updated the metadata.");
         Ok(())
     }
 
@@ -100,8 +104,9 @@ impl ClusterClient {
         offset: u64,
         count: u64,
     ) -> Result<Vec<Message>, SystemError> {
+        let leader_address = self.get_leader_address(stream_id).await?;
         let command = PollMessages::new_command(stream_id, offset, count);
-        let bytes = self.send(&command).await?;
+        let bytes = self.send(&command, &leader_address).await?;
         let mut messages = Vec::new();
         let mut position = 0;
         while position < bytes.len() {
@@ -123,13 +128,15 @@ impl ClusterClient {
     }
 
     pub async fn ping(&self) -> Result<(), SystemError> {
-        self.send(&Ping::new_command()).await?;
+        let address = self.get_first_node_address()?;
+        self.send(&Ping::new_command(), &address).await?;
         Ok(())
     }
 
     pub async fn create_stream(&self, stream_id: u64) -> Result<(), SystemError> {
         let command = CreateStream::new_command(stream_id);
-        self.send(&command).await?;
+        let address = self.get_first_node_address()?;
+        self.send(&command, &address).await?;
         Ok(())
     }
 
@@ -138,33 +145,78 @@ impl ClusterClient {
         stream_id: u64,
         messages: Vec<AppendableMessage>,
     ) -> Result<(), SystemError> {
+        let leader_address = self.get_leader_address(stream_id).await?;
         let command = AppendMessages::new_command(stream_id, messages);
-        self.send(&command).await?;
+        self.send(&command, &leader_address).await?;
         Ok(())
     }
 
     pub async fn get_metadata(&self) -> Result<Metadata, SystemError> {
+        let address = self.get_first_node_address()?;
         let command = GetMetadata::new_command();
-        let bytes = self.send(&command).await?;
+        let bytes = self.send(&command, &address).await?;
         let metadata = Metadata::from_bytes(&bytes)?;
         Ok(metadata)
     }
 
-    async fn send(&self, command: &Command) -> Result<Vec<u8>, SystemError> {
+    async fn update_metadata(&mut self) -> Result<(), SystemError> {
+        let metadata = self.get_metadata().await?;
+        self.metadata = Some(Mutex::new(metadata));
+        Ok(())
+    }
+
+    fn get_first_node_address(&self) -> Result<String, SystemError> {
+        let client = self.clients.iter().find(|(_, client)| client.is_some());
+        if client.is_none() {
+            return Err(SystemError::UnhealthyCluster);
+        }
+
+        let (address, _) = client.unwrap();
+        Ok(address.to_string())
+    }
+
+    async fn get_leader_address(&self, stream_id: u64) -> Result<String, SystemError> {
+        let metadata = self.metadata.as_ref().unwrap().lock().await;
+        let stream = metadata
+            .streams
+            .iter()
+            .find(|stream| stream.id == stream_id);
+        if stream.is_none() {
+            return Err(SystemError::InvalidStreamId);
+        }
+
+        let leader_id = stream.unwrap().leader_id;
+        let node = metadata.nodes.iter().find(|node| node.id == leader_id);
+        if node.is_none() {
+            return Err(SystemError::InvalidNode(leader_id));
+        }
+
+        let node = node.unwrap();
+        let address = &node.address;
+        if !self.clients.contains_key(address) {
+            return Err(SystemError::InvalidClusterNodeAddress(address.to_string()));
+        }
+
+        Ok(address.to_string())
+    }
+
+    async fn send(&self, command: &Command, address: &str) -> Result<Vec<u8>, SystemError> {
         if self.clients.iter().all(|(_, client)| client.is_none()) {
             return Err(SystemError::UnhealthyCluster);
         }
 
-        let mut result = Vec::new();
-        for (_, client) in self.clients.iter() {
-            if client.is_none() {
-                continue;
-            }
-
-            let client = client.as_ref().unwrap();
-            let mut client = client.lock().await;
-            result = client.send(command).await?
+        let client = self.clients.get(address);
+        if client.is_none() {
+            return Err(SystemError::InvalidClusterNodeAddress(address.to_string()));
         }
-        Ok(result)
+
+        let client = client.unwrap();
+        if client.is_none() {
+            return Err(SystemError::CannotConnectToClusterNode(address.to_string()));
+        }
+
+        let client = client.as_ref().unwrap();
+        let mut client = client.lock().await;
+        client.send(command).await
     }
 }
