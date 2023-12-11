@@ -1,12 +1,13 @@
 use crate::bytes_serializable::BytesSerializable;
 use crate::error::SystemError;
 use bytes::BufMut;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
 pub struct Metadata {
-    pub nodes: Vec<NodeInfo>,
-    pub streams: Vec<StreamInfo>,
+    pub nodes: HashMap<u64, NodeInfo>,
+    pub streams: HashMap<u64, StreamInfo>,
 }
 
 impl Display for Metadata {
@@ -44,24 +45,23 @@ impl NodeInfo {
 
 #[derive(Debug)]
 pub struct StreamInfo {
-    pub id: u64,
+    pub stream_id: u64,
     pub leader_id: u64,
-    pub name: String,
 }
 
 impl Display for StreamInfo {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "StreamInfo {{ id: {}, leader_id: {}, name: {} }}",
-            self.id, self.leader_id, self.name
+            "StreamInfo {{ id: {}, leader_id: {} }}",
+            self.stream_id, self.leader_id
         )
     }
 }
 
 impl StreamInfo {
     fn get_size_bytes(&self) -> usize {
-        8 + 8 + 1 + self.name.len()
+        16
     }
 }
 
@@ -93,10 +93,8 @@ impl BytesSerializable for NodeInfo {
 impl BytesSerializable for StreamInfo {
     fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        bytes.put_u64_le(self.id);
+        bytes.put_u64_le(self.stream_id);
         bytes.put_u64_le(self.leader_id);
-        bytes.put_u8(self.name.len() as u8);
-        bytes.extend(self.name.as_bytes());
         bytes
     }
 
@@ -106,12 +104,9 @@ impl BytesSerializable for StreamInfo {
     {
         let id = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
         let leader_id = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
-        let name_len = bytes[16] as usize;
-        let name = String::from_utf8(bytes[17..17 + name_len].to_vec()).unwrap();
         Ok(StreamInfo {
-            id,
+            stream_id: id,
             leader_id,
-            name,
         })
     }
 }
@@ -120,12 +115,12 @@ impl BytesSerializable for Metadata {
     fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.put_u8(self.nodes.len() as u8);
-        for node in &self.nodes {
-            bytes.extend(&node.as_bytes());
+        for node in self.nodes.values() {
+            bytes.extend(node.as_bytes());
         }
         bytes.put_u8(self.streams.len() as u8);
-        for stream in &self.streams {
-            bytes.extend(&stream.as_bytes());
+        for stream in self.streams.values() {
+            bytes.extend(stream.as_bytes());
         }
         bytes
     }
@@ -137,19 +132,19 @@ impl BytesSerializable for Metadata {
         let mut offset = 0;
         let nodes_len = bytes[offset] as usize;
         offset += 1;
-        let mut nodes = Vec::new();
+        let mut nodes = HashMap::new();
         for _ in 0..nodes_len {
             let node = NodeInfo::from_bytes(&bytes[offset..])?;
             offset += node.get_size_bytes();
-            nodes.push(node);
+            nodes.insert(node.id, node);
         }
         let streams_len = bytes[offset] as usize;
         offset += 1;
-        let mut streams = Vec::new();
+        let mut streams = HashMap::new();
         for _ in 0..streams_len {
             let stream = StreamInfo::from_bytes(&bytes[offset..])?;
             offset += stream.get_size_bytes();
-            streams.push(stream);
+            streams.insert(stream.stream_id, stream);
         }
         Ok(Metadata { nodes, streams })
     }

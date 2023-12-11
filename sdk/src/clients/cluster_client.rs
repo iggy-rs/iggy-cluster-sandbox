@@ -177,16 +177,13 @@ impl ClusterClient {
 
     async fn get_leader_address(&self, stream_id: u64) -> Result<String, SystemError> {
         let metadata = self.metadata.as_ref().unwrap().lock().await;
-        let stream = metadata
-            .streams
-            .iter()
-            .find(|stream| stream.id == stream_id);
+        let stream = metadata.streams.get(&stream_id);
         if stream.is_none() {
             return Err(SystemError::InvalidStreamId);
         }
 
         let leader_id = stream.unwrap().leader_id;
-        let node = metadata.nodes.iter().find(|node| node.id == leader_id);
+        let node = metadata.nodes.get(&leader_id);
         if node.is_none() {
             return Err(SystemError::InvalidNode(leader_id));
         }

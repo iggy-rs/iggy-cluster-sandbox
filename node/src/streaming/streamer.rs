@@ -9,15 +9,21 @@ use tracing::warn;
 #[derive(Debug)]
 pub(crate) struct Streamer {
     path: String,
+    node_id: u64,
     streams: HashMap<u64, Stream>,
 }
 
 impl Streamer {
-    pub fn new(path: &str) -> Self {
+    pub fn new(node_id: u64, path: &str) -> Self {
         Self {
+            node_id,
             path: path.to_string(),
             streams: HashMap::new(),
         }
+    }
+
+    pub fn get_streams(&self) -> Vec<&Stream> {
+        self.streams.values().collect::<Vec<&Stream>>()
     }
 
     pub async fn create_stream(&mut self, id: u64) {
@@ -26,7 +32,7 @@ impl Streamer {
             return;
         }
 
-        let mut stream = Stream::new(id, &self.path);
+        let mut stream = Stream::new(id, self.node_id, &self.path);
         stream.init().await;
         self.streams.insert(id, stream);
     }

@@ -14,7 +14,8 @@ const LOG_FILE: &str = "stream.log";
 
 #[derive(Debug)]
 pub(crate) struct Stream {
-    pub id: u64,
+    pub stream_id: u64,
+    pub leader_id: u64,
     pub directory_path: String,
     pub log_path: String,
     pub messages: Vec<Message>,
@@ -28,7 +29,7 @@ impl Display for Stream {
         write!(
             f,
             "Stream {{ id: {}, path: {}, messages: {} }}",
-            self.id,
+            self.stream_id,
             self.log_path,
             self.messages.len()
         )
@@ -36,10 +37,11 @@ impl Display for Stream {
 }
 
 impl Stream {
-    pub fn new(id: u64, path: &str) -> Self {
-        let directory_path = format!("{path}/{id}");
+    pub fn new(stream_id: u64, leader_id: u64, path: &str) -> Self {
+        let directory_path = format!("{path}/{stream_id}");
         Self {
-            id,
+            stream_id,
+            leader_id,
             log_path: format!("{directory_path}/{LOG_FILE}"),
             directory_path,
             messages: Vec::new(),
@@ -74,7 +76,7 @@ impl Stream {
 
         info!(
             "Initialized stream with ID: {}, path: {}, messages count: {}",
-            self.id,
+            self.stream_id,
             self.log_path,
             self.messages.len()
         );
@@ -225,7 +227,9 @@ mod tests {
     #[monoio::test]
     async fn messages_should_be_stored_on_disk() {
         let test = Test {};
-        let mut stream = Stream::new(1, &test.streams_path());
+        let stream_id = 1;
+        let node_id = 2;
+        let mut stream = Stream::new(stream_id, node_id, &test.streams_path());
         stream.init().await;
         let messages = vec![
             sdk::commands::append_messages::AppendableMessage {

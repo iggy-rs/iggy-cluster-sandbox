@@ -5,6 +5,7 @@ use crate::streaming::streamer::Streamer;
 use futures::lock::Mutex;
 use sdk::error::SystemError;
 use sdk::models::metadata::{Metadata, NodeInfo, StreamInfo};
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use tracing::{error, info};
@@ -312,31 +313,40 @@ impl Cluster {
 
     pub async fn get_metadata(&self) -> Metadata {
         let mut metadata = Metadata {
-            nodes: Vec::new(),
-            streams: Vec::new(),
+            nodes: HashMap::new(),
+            streams: HashMap::new(),
         };
         metadata.nodes = self
             .nodes
             .iter()
-            .map(|node| NodeInfo {
-                id: node.node.id,
-                name: node.node.name.clone(),
-                address: node.node.address.clone(),
+            .map(|node| {
+                (
+                    node.node.id,
+                    NodeInfo {
+                        id: node.node.id,
+                        name: node.node.name.clone(),
+                        address: node.node.address.clone(),
+                    },
+                )
             })
             .collect();
-        let mut leader_id = 0;
-        for node in &self.nodes {
-            if *node.state.lock().await == ClusterNodeState::Leader {
-                leader_id = node.node.id;
-                break;
-            }
-        }
 
-        metadata.streams.push(StreamInfo {
-            id: 1,
-            name: "stream".to_string(),
-            leader_id,
-        });
+        metadata.streams = self
+            .streamer
+            .lock()
+            .await
+            .get_streams()
+            .iter()
+            .map(|stream| {
+                (
+                    stream.stream_id,
+                    StreamInfo {
+                        stream_id: stream.stream_id,
+                        leader_id: stream.leader_id,
+                    },
+                )
+            })
+            .collect();
         metadata
     }
 

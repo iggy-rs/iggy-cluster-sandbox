@@ -24,7 +24,7 @@ async fn main() -> Result<(), SystemError> {
     let config_provider = FileConfigProvider::default();
     let system_config = config_provider.load_config().await?;
     println!("{system_config}");
-    let mut streamer = Streamer::new(&system_config.stream.path);
+    let mut streamer = Streamer::new(system_config.node.id, &system_config.stream.path);
     streamer.init().await;
     let cluster = Cluster::new(
         system_config.node.id,
