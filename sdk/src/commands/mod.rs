@@ -5,4 +5,5 @@ pub mod get_metadata;
 pub mod hello;
 pub mod ping;
 pub mod poll_messages;
+pub mod request_vote;
 pub mod sync_messages;

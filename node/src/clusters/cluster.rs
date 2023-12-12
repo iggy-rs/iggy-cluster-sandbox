@@ -39,6 +39,12 @@ pub(crate) struct ClusterNode {
     pub node: Node,
 }
 
+impl ClusterNode {
+    pub async fn set_state(&self, state: ClusterNodeState) {
+        *self.state.lock().await = state;
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub(crate) enum ClusterNodeConnectionStatus {
     Connected,
@@ -142,9 +148,10 @@ impl Cluster {
             return Err(SystemError::UnhealthyCluster);
         }
 
-        let node_state = self.election_manager.start_election().await;
         let self_node = self_node.unwrap();
-        *self_node.state.lock().await = node_state;
+        self_node.set_state(ClusterNodeState::Candidate).await;
+        let node_state = self.election_manager.start_election().await;
+        self_node.set_state(node_state).await;
         Ok(())
     }
 

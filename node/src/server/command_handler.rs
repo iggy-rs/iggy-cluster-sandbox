@@ -21,6 +21,9 @@ pub async fn handle(
         Command::Ping(_) => {
             ping_handler::handle(handler).await?;
         }
+        Command::RequestVote(command) => {
+            request_vote_handler::handle(handler, command, cluster).await?;
+        }
         Command::GetMetadata(_) => {
             get_metadata_handler::handle(handler, cluster).await?;
         }

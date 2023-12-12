@@ -54,11 +54,11 @@ impl ElectionManager {
     }
 
     pub async fn start_election(&self) -> ClusterNodeState {
-        if !*self.election.is_completed.lock().await {
+        if !self.is_election_completed().await {
             return ClusterNodeState::Candidate;
         }
 
-        *self.election.is_completed.lock().await = false;
+        self.set_election_completed_state(false).await;
         let ordering = Ordering::SeqCst;
         let current_term = self.current_term.fetch_add(1, ordering);
         let new_term = current_term + 1;
@@ -67,7 +67,7 @@ impl ElectionManager {
         info!("Starting election for new term {new_term}, current term: {current_term}, timeout: {random_timeout} ms...");
         // Wait for random timeout and check if there is no leader in the meantime
         sleep(Duration::from_millis(random_timeout)).await;
-        *self.election.is_completed.lock().await = true;
+        self.set_election_completed_state(true).await;
         info!("Finished election for new term {new_term}, , current term: {current_term}.");
         if self.election.leader_id.lock().await.is_none() {
             // TODO: Notify other nodes to vote for you as a leader
@@ -114,5 +114,13 @@ impl ElectionManager {
         if self.self_id == vote_by && voted_for.is_none() {
             voted_for.replace(vote_for);
         }
+    }
+
+    async fn is_election_completed(&self) -> bool {
+        *self.election.is_completed.lock().await
+    }
+
+    async fn set_election_completed_state(&self, is_completed: bool) {
+        *self.election.is_completed.lock().await = is_completed;
     }
 }
