@@ -1,4 +1,4 @@
-use crate::clusters::election::ElectionManager;
+use crate::clusters::election::{ElectionManager, ElectionState};
 use crate::clusters::node::{Node, Resiliency};
 use crate::configs::config::ClusterConfig;
 use crate::streaming::streamer::Streamer;
@@ -150,8 +150,31 @@ impl Cluster {
 
         let self_node = self_node.unwrap();
         self_node.set_state(ClusterNodeState::Candidate).await;
-        let node_state = self.election_manager.start_election().await;
-        self_node.set_state(node_state).await;
+        let term = self.election_manager.next_term();
+        let election_state = self.election_manager.start_election(term).await;
+        match election_state {
+            ElectionState::InProgress => {
+                info!("Election for term: {term} is in progress...");
+            }
+            ElectionState::LeaderElected(leader_id) => {
+                info!(
+                    "Election for term: {term} has completed, leader ID: {}.",
+                    leader_id
+                );
+                if leader_id == self_node.node.id {
+                    self_node.set_state(ClusterNodeState::Leader).await;
+                    info!("Your role is leader, term: {term}.");
+                } else {
+                    self_node.set_state(ClusterNodeState::Follower).await;
+                    info!("Your role is follower, term: {term}.");
+                }
+            }
+            ElectionState::NoLeaderElected => {
+                info!("Election for term: {term} has completed, no leader elected.");
+                // TODO: Request votes from other nodes.
+            }
+        }
+
         Ok(())
     }
 

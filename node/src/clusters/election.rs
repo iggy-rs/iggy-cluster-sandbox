@@ -1,31 +1,36 @@
-use crate::clusters::cluster::ClusterNodeState;
 use futures::lock::Mutex;
 use monoio::time::sleep;
 use rand::rngs::ThreadRng;
 use rand::Rng;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use tracing::info;
 
 type CandidateId = u64;
-type TermId = AtomicU64;
+type TermId = u64;
 
 #[derive(Debug)]
 pub(crate) struct Election {
     pub is_completed: Mutex<bool>,
-    pub term: TermId,
+    pub term: Mutex<TermId>,
     pub leader_id: Mutex<Option<CandidateId>>,
     pub votes_count: Mutex<HashMap<CandidateId, HashSet<CandidateId>>>,
     pub voted_for: Mutex<Option<CandidateId>>,
+}
+
+#[derive(Debug, PartialEq, Copy, Clone)]
+pub enum ElectionState {
+    InProgress,
+    LeaderElected(u64),
+    NoLeaderElected,
 }
 
 impl Default for Election {
     fn default() -> Self {
         Self {
             is_completed: Mutex::new(true),
-            term: TermId::new(0),
+            term: Mutex::new(0),
             leader_id: Mutex::new(None),
             votes_count: Mutex::new(HashMap::new()),
             voted_for: Mutex::new(None),
@@ -46,33 +51,34 @@ impl ElectionManager {
     pub fn new(self_id: CandidateId) -> Self {
         Self {
             self_id,
-            current_term: AtomicU64::new(0),
+            current_term: 0,
             current_leader_id: None,
             election: Election::default(),
             randomizer: Mutex::new(rand::thread_rng()),
         }
     }
 
-    pub async fn start_election(&self) -> ClusterNodeState {
+    pub fn next_term(&self) -> TermId {
+        self.current_term + 1
+    }
+
+    pub async fn start_election(&self, term: TermId) -> ElectionState {
         if !self.is_election_completed().await {
-            return ClusterNodeState::Candidate;
+            return ElectionState::InProgress;
         }
 
+        *self.election.term.lock().await = term;
+        let current_term = self.current_term;
         self.set_election_completed_state(false).await;
-        let ordering = Ordering::SeqCst;
-        let current_term = self.current_term.fetch_add(1, ordering);
-        let new_term = current_term + 1;
-        self.election.term.store(new_term, ordering);
         let random_timeout = self.randomizer.lock().await.gen_range(150..=300);
-        info!("Starting election for new term {new_term}, current term: {current_term}, timeout: {random_timeout} ms...");
+        info!("Starting election for new term {term}, current term: {current_term}, timeout: {random_timeout} ms...");
         // Wait for random timeout and check if there is no leader in the meantime
         sleep(Duration::from_millis(random_timeout)).await;
         self.set_election_completed_state(true).await;
-        info!("Finished election for new term {new_term}, , current term: {current_term}.");
+        info!("Finished election for new term {term}, current term: {current_term}.");
         if self.election.leader_id.lock().await.is_none() {
-            // TODO: Notify other nodes to vote for you as a leader
             self.assign_vote(self.self_id, self.self_id).await;
-            return ClusterNodeState::Candidate;
+            return ElectionState::NoLeaderElected;
         }
 
         let votes_count = self.election.votes_count.lock().await;
@@ -84,15 +90,10 @@ impl ElectionManager {
         if votes.len() > (votes_count.len() / 2) {
             let leader = *leader;
             self.election.leader_id.lock().await.replace(leader);
-            return if self.self_id == leader {
-                ClusterNodeState::Leader
-            } else {
-                ClusterNodeState::Follower
-            };
+            return ElectionState::LeaderElected(leader);
         }
 
-        // TODO: No leader elected, start new election
-        ClusterNodeState::Candidate
+        ElectionState::NoLeaderElected
     }
 
     pub async fn assign_vote(&self, vote_by: CandidateId, vote_for: CandidateId) {
