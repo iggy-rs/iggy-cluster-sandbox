@@ -14,6 +14,7 @@ mod connection;
 mod handlers;
 mod server;
 mod streaming;
+mod types;
 
 #[monoio::main(timer_enabled = true)]
 async fn main() -> Result<(), SystemError> {

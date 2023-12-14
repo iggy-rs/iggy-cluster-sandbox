@@ -1,5 +1,5 @@
 use crate::clusters::cluster::Cluster;
-use crate::connection::tcp_connection::TcpConnection;
+use crate::connection::handler::ConnectionHandler;
 use crate::handlers::*;
 use sdk::commands::command::Command;
 use sdk::error::SystemError;
@@ -7,7 +7,7 @@ use std::rc::Rc;
 use tracing::info;
 
 pub async fn handle(
-    handler: &mut TcpConnection,
+    handler: &mut ConnectionHandler,
     command: &Command,
     cluster: &Rc<Cluster>,
 ) -> Result<(), SystemError> {

@@ -1,5 +1,5 @@
 use crate::clusters::node::Resiliency;
-use crate::connection::tcp_connection::TcpConnection;
+use crate::connection::handler::ConnectionHandler;
 use futures::lock::Mutex;
 use monoio::net::TcpStream;
 use monoio::time::sleep;
@@ -30,7 +30,7 @@ pub struct NodeClient {
     pub secret: String,
     pub self_name: String,
     pub address: SocketAddr,
-    pub handler: Mutex<Option<TcpConnection>>,
+    pub handler: Mutex<Option<ConnectionHandler>>,
     client_state: Mutex<ClientState>,
     health_state: Mutex<HealthState>,
     resiliency: Resiliency,
@@ -103,7 +103,7 @@ impl NodeClient {
             self.handler
                 .lock()
                 .await
-                .replace(TcpConnection::new(stream));
+                .replace(ConnectionHandler::new(stream, self.id));
             self.set_client_state(ClientState::Connected).await;
             self.set_health_state(HealthState::Healthy).await;
             break;

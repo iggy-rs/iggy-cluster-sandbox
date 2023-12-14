@@ -1,5 +1,5 @@
 use crate::clusters::cluster::Cluster;
-use crate::connection::tcp_connection::TcpConnection;
+use crate::connection::handler::ConnectionHandler;
 use crate::server::command_handler;
 use sdk::commands::command::Command;
 use sdk::error::SystemError;
@@ -8,7 +8,10 @@ use tracing::{debug, error, warn};
 
 const INITIAL_BYTES_LENGTH: usize = 8;
 
-pub async fn listen(handler: &mut TcpConnection, cluster: Rc<Cluster>) -> Result<(), SystemError> {
+pub async fn listen(
+    handler: &mut ConnectionHandler,
+    cluster: Rc<Cluster>,
+) -> Result<(), SystemError> {
     let mut initial_buffer = vec![0u8; INITIAL_BYTES_LENGTH];
     let mut read_length;
     loop {

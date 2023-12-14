@@ -1,12 +1,12 @@
 use crate::clusters::cluster::Cluster;
-use crate::connection::tcp_connection::TcpConnection;
+use crate::connection::handler::ConnectionHandler;
 use sdk::commands::hello::Hello;
 use sdk::error::SystemError;
 use std::rc::Rc;
 use tracing::info;
 
 pub(crate) async fn handle(
-    handler: &mut TcpConnection,
+    handler: &mut ConnectionHandler,
     command: &Hello,
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {
@@ -23,6 +23,7 @@ pub(crate) async fn handle(
     }
 
     info!("Received a valid cluster secret.");
+    handler.node_id = command.id;
     handler.send_empty_ok_response().await?;
     info!("Sent a hello response.");
     if cluster.is_connected_to(command.id).await {

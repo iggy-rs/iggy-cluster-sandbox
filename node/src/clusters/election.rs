@@ -1,3 +1,4 @@
+use crate::types::{CandidateId, NodeId, TermId};
 use futures::lock::Mutex;
 use monoio::time::sleep;
 use rand::rngs::ThreadRng;
@@ -5,17 +6,14 @@ use rand::Rng;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
-use tracing::info;
-
-type CandidateId = u64;
-type TermId = u64;
+use tracing::{info, warn};
 
 #[derive(Debug)]
 pub(crate) struct Election {
     pub is_completed: Mutex<bool>,
     pub term: Mutex<TermId>,
-    pub leader_id: Mutex<Option<CandidateId>>,
-    pub votes_count: Mutex<HashMap<CandidateId, HashSet<CandidateId>>>,
+    pub leader_id: Mutex<Option<NodeId>>,
+    pub votes_count: Mutex<HashMap<CandidateId, HashSet<NodeId>>>,
     pub voted_for: Mutex<Option<CandidateId>>,
 }
 
@@ -41,8 +39,8 @@ impl Default for Election {
 #[derive(Debug)]
 pub struct ElectionManager {
     self_id: CandidateId,
-    current_term: TermId,
-    current_leader_id: Option<CandidateId>,
+    current_term: Mutex<TermId>,
+    current_leader_id: Mutex<Option<CandidateId>>,
     election: Election,
     randomizer: Mutex<ThreadRng>,
 }
@@ -51,15 +49,16 @@ impl ElectionManager {
     pub fn new(self_id: CandidateId) -> Self {
         Self {
             self_id,
-            current_term: 0,
-            current_leader_id: None,
+            current_term: Mutex::new(0),
+            current_leader_id: Mutex::new(None),
             election: Election::default(),
             randomizer: Mutex::new(rand::thread_rng()),
         }
     }
 
-    pub fn next_term(&self) -> TermId {
-        self.current_term + 1
+    pub async fn next_term(&self) -> TermId {
+        let current_term = self.current_term.lock().await;
+        *current_term + 1
     }
 
     pub async fn start_election(&self, term: TermId) -> ElectionState {
@@ -67,17 +66,21 @@ impl ElectionManager {
             return ElectionState::InProgress;
         }
 
-        *self.election.term.lock().await = term;
-        let current_term = self.current_term;
         self.set_election_completed_state(false).await;
-        let random_timeout = self.randomizer.lock().await.gen_range(150..=300);
-        info!("Starting election for new term {term}, current term: {current_term}, timeout: {random_timeout} ms...");
+        *self.election.term.lock().await = term;
+        let previous_term;
+
+        {
+            let mut current_term = self.current_term.lock().await;
+            previous_term = *current_term;
+            *current_term = term;
+        }
+
+        let timeout = self.randomizer.lock().await.gen_range(150..=300);
+        info!("Starting election for new term {term}, previous term: {previous_term}, timeout: {timeout} ms...");
         // Wait for random timeout and check if there is no leader in the meantime
-        sleep(Duration::from_millis(random_timeout)).await;
-        self.set_election_completed_state(true).await;
-        info!("Finished election for new term {term}, current term: {current_term}.");
+        sleep(Duration::from_millis(timeout)).await;
         if self.election.leader_id.lock().await.is_none() {
-            self.assign_vote(self.self_id, self.self_id).await;
             return ElectionState::NoLeaderElected;
         }
 
@@ -88,7 +91,9 @@ impl ElectionManager {
             .unwrap();
 
         if votes.len() > (votes_count.len() / 2) {
+            self.set_election_completed_state(true).await;
             let leader = *leader;
+            self.current_leader_id.lock().await.replace(leader);
             self.election.leader_id.lock().await.replace(leader);
             return ElectionState::LeaderElected(leader);
         }
@@ -96,32 +101,53 @@ impl ElectionManager {
         ElectionState::NoLeaderElected
     }
 
-    pub async fn assign_vote(&self, vote_by: CandidateId, vote_for: CandidateId) {
-        if self.current_leader_id.is_some() {
-            // Election is over
+    pub async fn vote(&self, term_id: TermId, candidate_id: CandidateId, node_id: NodeId) {
+        if self.is_election_completed().await {
+            warn!("Election is over, ignoring vote request.");
             return;
         }
 
-        let mut votes_count = self.election.votes_count.lock().await;
-        if let Entry::Vacant(entry) = votes_count.entry(vote_by) {
-            let mut votes = HashSet::new();
-            votes.insert(vote_for);
-            entry.insert(votes);
-        } else {
-            votes_count.get_mut(&vote_by).unwrap().insert(vote_for);
+        let current_term = *self.current_term.lock().await;
+        if term_id < current_term {
+            warn!(
+                "Received vote request for term: {term_id}, candidate ID: {candidate_id} from node ID: {node_id}, but current term is: {current_term}.",
+            );
+            return;
         }
 
+        info!(
+            "Received vote request for term: {term_id}, current term: {current_term}, candidate ID: {candidate_id} from node ID: {node_id}.",
+        );
+        if term_id > current_term {
+            info!("Updating current term to: {term_id} and resetting previous votes...");
+            *self.current_term.lock().await = term_id;
+            *self.election.term.lock().await = term_id;
+            self.election.voted_for.lock().await.take();
+            self.election.votes_count.lock().await.clear();
+        }
+
+        let mut votes_count = self.election.votes_count.lock().await;
+        if let Entry::Vacant(entry) = votes_count.entry(candidate_id) {
+            let mut votes = HashSet::new();
+            votes.insert(node_id);
+            entry.insert(votes);
+        } else {
+            votes_count.get_mut(&candidate_id).unwrap().insert(node_id);
+        }
+        info!("Current votes: {votes_count:?}.");
+
         let mut voted_for = self.election.voted_for.lock().await;
-        if self.self_id == vote_by && voted_for.is_none() {
-            voted_for.replace(vote_for);
+        if self.self_id == node_id && voted_for.is_none() {
+            voted_for.replace(candidate_id);
+            info!("You have voted for: {candidate_id}.")
         }
     }
 
-    async fn is_election_completed(&self) -> bool {
+    pub async fn is_election_completed(&self) -> bool {
         *self.election.is_completed.lock().await
     }
 
-    async fn set_election_completed_state(&self, is_completed: bool) {
+    pub async fn set_election_completed_state(&self, is_completed: bool) {
         *self.election.is_completed.lock().await = is_completed;
     }
 }

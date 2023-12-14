@@ -1,11 +1,11 @@
 use crate::clusters::cluster::Cluster;
-use crate::connection::tcp_connection::TcpConnection;
+use crate::connection::handler::ConnectionHandler;
 use sdk::commands::create_stream::CreateStream;
 use sdk::error::SystemError;
 use std::rc::Rc;
 
 pub(crate) async fn handle(
-    handler: &mut TcpConnection,
+    handler: &mut ConnectionHandler,
     command: &CreateStream,
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {

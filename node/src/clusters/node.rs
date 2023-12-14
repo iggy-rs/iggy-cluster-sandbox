@@ -1,4 +1,5 @@
 use crate::clusters::node_client::{ClientState, NodeClient};
+use crate::types::NodeId;
 use monoio::time::sleep;
 use sdk::error::SystemError;
 use std::time::Duration;
@@ -6,7 +7,7 @@ use tracing::{error, info};
 
 #[derive(Debug)]
 pub struct Node {
-    pub id: u64,
+    pub id: NodeId,
     pub name: String,
     pub address: String,
     heartbeat: NodeHeartbeat,
@@ -28,7 +29,7 @@ pub struct NodeHeartbeat {
 
 impl Node {
     pub fn new(
-        id: u64,
+        id: NodeId,
         secret: &str,
         name: &str,
         self_name: &str,

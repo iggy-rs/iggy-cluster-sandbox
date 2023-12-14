@@ -1,4 +1,4 @@
-use crate::clusters::election::{ElectionManager, ElectionState};
+use crate::clusters::election::ElectionManager;
 use crate::clusters::node::{Node, Resiliency};
 use crate::configs::config::ClusterConfig;
 use crate::streaming::streamer::Streamer;
@@ -142,42 +142,6 @@ impl Cluster {
         )
     }
 
-    pub async fn start_election(&self) -> Result<(), SystemError> {
-        let self_node = self.get_self_node();
-        if self_node.is_none() {
-            return Err(SystemError::UnhealthyCluster);
-        }
-
-        let self_node = self_node.unwrap();
-        self_node.set_state(ClusterNodeState::Candidate).await;
-        let term = self.election_manager.next_term();
-        let election_state = self.election_manager.start_election(term).await;
-        match election_state {
-            ElectionState::InProgress => {
-                info!("Election for term: {term} is in progress...");
-            }
-            ElectionState::LeaderElected(leader_id) => {
-                info!(
-                    "Election for term: {term} has completed, leader ID: {}.",
-                    leader_id
-                );
-                if leader_id == self_node.node.id {
-                    self_node.set_state(ClusterNodeState::Leader).await;
-                    info!("Your role is leader, term: {term}.");
-                } else {
-                    self_node.set_state(ClusterNodeState::Follower).await;
-                    info!("Your role is follower, term: {term}.");
-                }
-            }
-            ElectionState::NoLeaderElected => {
-                info!("Election for term: {term} has completed, no leader elected.");
-                // TODO: Request votes from other nodes.
-            }
-        }
-
-        Ok(())
-    }
-
     pub async fn connect(&self) -> Result<(), SystemError> {
         info!("Connecting all cluster nodes...");
         let mut connections = 0;
@@ -225,7 +189,7 @@ impl Cluster {
         Self::connect_to_node(cluster_node.unwrap()).await
     }
 
-    fn get_self_node(&self) -> Option<Rc<ClusterNode>> {
+    pub fn get_self_node(&self) -> Option<Rc<ClusterNode>> {
         self.nodes
             .iter()
             .find(|cluster_node| cluster_node.node.is_self)

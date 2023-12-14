@@ -1,3 +1,4 @@
+use crate::types::NodeId;
 use bytes::BufMut;
 use monoio::io::{AsyncReadRent, AsyncWriteRentExt};
 use monoio::net::TcpStream;
@@ -10,13 +11,14 @@ const RESPONSE_INITIAL_BYTES_LENGTH: usize = 8;
 const EMPTY_BYTES: Vec<u8> = vec![];
 
 #[derive(Debug)]
-pub(crate) struct TcpConnection {
+pub(crate) struct ConnectionHandler {
     stream: TcpStream,
+    pub node_id: NodeId,
 }
 
-impl TcpConnection {
-    pub fn new(stream: TcpStream) -> Self {
-        Self { stream }
+impl ConnectionHandler {
+    pub fn new(stream: TcpStream, node_id: NodeId) -> Self {
+        Self { stream, node_id }
     }
 
     pub async fn read(&mut self, buffer: Vec<u8>) -> Result<(usize, Vec<u8>), SystemError> {

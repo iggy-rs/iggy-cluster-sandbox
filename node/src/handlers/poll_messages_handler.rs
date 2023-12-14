@@ -1,5 +1,5 @@
 use crate::clusters::cluster::Cluster;
-use crate::connection::tcp_connection::TcpConnection;
+use crate::connection::handler::ConnectionHandler;
 use sdk::bytes_serializable::BytesSerializable;
 use sdk::commands::poll_messages::PollMessages;
 use sdk::error::SystemError;
@@ -7,7 +7,7 @@ use std::rc::Rc;
 use tracing::info;
 
 pub(crate) async fn handle(
-    handler: &mut TcpConnection,
+    handler: &mut ConnectionHandler,
     command: &PollMessages,
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {
