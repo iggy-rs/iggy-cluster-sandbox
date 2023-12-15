@@ -5,6 +5,8 @@ use monoio::net::TcpStream;
 use monoio::time::sleep;
 use sdk::commands::hello::Hello;
 use sdk::commands::ping::Ping;
+use sdk::commands::request_vote::RequestVote;
+use sdk::commands::update_leader::UpdateLeader;
 use sdk::error::SystemError;
 use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
@@ -156,6 +158,48 @@ impl NodeClient {
             "Received a pong from cluster node: {} in {} ms.",
             self.address,
             elapsed.as_millis()
+        );
+        Ok(())
+    }
+
+    pub async fn request_vote(&self, term: u64) -> Result<(), SystemError> {
+        info!(
+            "Sending a request vote to cluster node: {}, term: {}...",
+            self.id, term
+        );
+        let command = RequestVote::new_command(term);
+        self.send_request(&command).await?;
+        if let Err(error) = self.send_request(&command).await {
+            error!(
+                "Failed to send a request vote to cluster node: {}, term: {}.",
+                self.address, term
+            );
+            return Err(error);
+        }
+        info!(
+            "Received a request vote response from cluster node: {}",
+            self.id,
+        );
+        Ok(())
+    }
+
+    pub async fn update_leader(&self, term: u64) -> Result<(), SystemError> {
+        info!(
+            "Sending an update leader to cluster node: {}, term: {}...",
+            self.id, term
+        );
+        let command = UpdateLeader::new_command(term);
+        self.send_request(&command).await?;
+        if let Err(error) = self.send_request(&command).await {
+            error!(
+                "Failed to send an update leader to cluster node: {}, term: {}.",
+                self.address, term
+            );
+            return Err(error);
+        }
+        info!(
+            "Received an update leader response from cluster node: {}",
+            self.id,
         );
         Ok(())
     }

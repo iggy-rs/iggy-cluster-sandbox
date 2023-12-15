@@ -111,10 +111,10 @@ impl Cluster {
 
         Ok(Self {
             state: Mutex::new(ClusterState::Uninitialized),
+            election_manager: ElectionManager::new(self_id, (nodes.len() / 2) + 1),
             nodes,
             streamer: Mutex::new(streamer),
             secret: config.secret.to_string(),
-            election_manager: ElectionManager::new(self_id),
         })
     }
 

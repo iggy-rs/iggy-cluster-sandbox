@@ -24,8 +24,8 @@ pub async fn handle(
         Command::RequestVote(command) => {
             request_vote_handler::handle(handler, command, cluster).await?;
         }
-        Command::SendVote(command) => {
-            send_vote_handler::handle(handler, command, cluster).await?;
+        Command::UpdateLeader(command) => {
+            update_leader_handler::handle(handler, command, cluster).await?;
         }
         Command::GetMetadata(_) => {
             get_metadata_handler::handle(handler, cluster).await?;

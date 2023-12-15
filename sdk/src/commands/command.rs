@@ -6,8 +6,8 @@ use crate::commands::hello::Hello;
 use crate::commands::ping::Ping;
 use crate::commands::poll_messages::PollMessages;
 use crate::commands::request_vote::RequestVote;
-use crate::commands::send_vote::SendVote;
 use crate::commands::sync_messages::SyncMessages;
+use crate::commands::update_leader::UpdateLeader;
 use crate::error::SystemError;
 use bytes::BufMut;
 use std::fmt::{Display, Formatter};
@@ -15,7 +15,7 @@ use std::fmt::{Display, Formatter};
 const HELLO_CODE: u32 = 1;
 const PING_CODE: u32 = 2;
 const REQUEST_VOTE_CODE: u32 = 3;
-const SEND_VOTE_CODE: u32 = 4;
+const UPDATE_LEADER_CODE: u32 = 4;
 const GET_METADATA_CODE: u32 = 5;
 const SYNC_MESSAGES_CODE: u32 = 10;
 const CREATE_STREAM_CODE: u32 = 20;
@@ -27,7 +27,7 @@ pub enum Command {
     Hello(Hello),
     Ping(Ping),
     RequestVote(RequestVote),
-    SendVote(SendVote),
+    UpdateLeader(UpdateLeader),
     GetMetadata(GetMetadata),
     CreateStream(CreateStream),
     AppendMessages(AppendMessages),
@@ -41,7 +41,7 @@ impl Command {
             Command::Hello(_) => "hello",
             Command::Ping(_) => "ping",
             Command::RequestVote(_) => "request_vote",
-            Command::SendVote(_) => "send_vote",
+            Command::UpdateLeader(_) => "update_leader",
             Command::GetMetadata(_) => "get_metadata",
             Command::CreateStream(_) => "create_stream",
             Command::AppendMessages(_) => "append_messages",
@@ -55,7 +55,7 @@ impl Command {
             Command::Hello(command) => to_bytes(HELLO_CODE, command),
             Command::Ping(command) => to_bytes(PING_CODE, command),
             Command::RequestVote(command) => to_bytes(REQUEST_VOTE_CODE, command),
-            Command::SendVote(command) => to_bytes(SEND_VOTE_CODE, command),
+            Command::UpdateLeader(command) => to_bytes(UPDATE_LEADER_CODE, command),
             Command::GetMetadata(command) => to_bytes(GET_METADATA_CODE, command),
             Command::CreateStream(command) => to_bytes(CREATE_STREAM_CODE, command),
             Command::AppendMessages(command) => to_bytes(APPEND_MESSAGES_CODE, command),
@@ -72,7 +72,7 @@ impl Command {
             HELLO_CODE => Ok(Command::Hello(Hello::from_bytes(bytes)?)),
             PING_CODE => Ok(Command::Ping(Ping::from_bytes(bytes)?)),
             REQUEST_VOTE_CODE => Ok(Command::RequestVote(RequestVote::from_bytes(bytes)?)),
-            SEND_VOTE_CODE => Ok(Command::SendVote(SendVote::from_bytes(bytes)?)),
+            UPDATE_LEADER_CODE => Ok(Command::UpdateLeader(UpdateLeader::from_bytes(bytes)?)),
             GET_METADATA_CODE => Ok(Command::GetMetadata(GetMetadata::from_bytes(bytes)?)),
             CREATE_STREAM_CODE => Ok(Command::CreateStream(CreateStream::from_bytes(bytes)?)),
             APPEND_MESSAGES_CODE => Ok(Command::AppendMessages(AppendMessages::from_bytes(bytes)?)),
@@ -98,18 +98,10 @@ impl Display for Command {
             Command::Hello(hello) => write!(f, "Hello from: {}", hello.name),
             Command::Ping(_) => write!(f, "Ping"),
             Command::RequestVote(request_vote) => {
-                write!(
-                    f,
-                    "Request vote: {}, {}",
-                    request_vote.term, request_vote.candidate_id
-                )
+                write!(f, "Request vote: {}", request_vote.term)
             }
-            Command::SendVote(send_vote) => {
-                write!(
-                    f,
-                    "Send vote: {}, {}",
-                    send_vote.term, send_vote.candidate_id
-                )
+            Command::UpdateLeader(update_leader) => {
+                write!(f, "Update leader: {}", update_leader.term)
             }
             Command::GetMetadata(_) => write!(f, "Get metadata"),
             Command::CreateStream(create_stream) => {

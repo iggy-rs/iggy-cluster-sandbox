@@ -101,6 +101,22 @@ impl Node {
         }
     }
 
+    pub async fn request_vote(&self, term: u64) -> Result<(), SystemError> {
+        if self.is_self {
+            return Ok(());
+        }
+
+        self.client.request_vote(term).await
+    }
+
+    pub async fn update_leader(&self, term: u64) -> Result<(), SystemError> {
+        if self.is_self {
+            return Ok(());
+        }
+
+        self.client.update_leader(term).await
+    }
+
     pub async fn disconnect(&self) -> Result<(), SystemError> {
         if self.is_self {
             return Ok(());

@@ -3,19 +3,15 @@ use crate::connection::handler::ConnectionHandler;
 use sdk::commands::hello::Hello;
 use sdk::error::SystemError;
 use std::rc::Rc;
-use tracing::info;
+use tracing::{info, warn};
 
 pub(crate) async fn handle(
     handler: &mut ConnectionHandler,
     command: &Hello,
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {
-    info!(
-        "Received a hello command, secret: {}, name: {}, ID: {}.",
-        command.secret, command.name, command.id
-    );
     if !cluster.validate_secret(&command.secret) {
-        info!("Invalid cluster secret: {}.", command.secret);
+        warn!("Invalid cluster secret: {}.", command.secret);
         handler
             .send_error_response(SystemError::InvalidClusterSecret)
             .await?;

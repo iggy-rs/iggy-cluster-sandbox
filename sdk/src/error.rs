@@ -48,6 +48,10 @@ pub enum SystemError {
     InvalidCount,
     #[error("Invalid stream ID")]
     InvalidStreamId,
+    #[error("Vote rejected")]
+    VoteRejected,
+    #[error("Leader rejected")]
+    LeaderRejected,
 }
 
 impl SystemError {
@@ -75,6 +79,8 @@ impl SystemError {
             SystemError::InvalidOffset => 20,
             SystemError::InvalidCount => 21,
             SystemError::InvalidStreamId => 22,
+            SystemError::VoteRejected => 23,
+            SystemError::LeaderRejected => 24,
         }
     }
 }
