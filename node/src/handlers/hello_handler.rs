@@ -11,17 +11,23 @@ pub(crate) async fn handle(
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {
     if !cluster.validate_secret(&command.secret) {
-        warn!("Invalid cluster secret: {}.", command.secret);
+        warn!(
+            "Invalid cluster secret: {} from node ID: {}.",
+            command.secret, command.id
+        );
         handler
             .send_error_response(SystemError::InvalidClusterSecret)
             .await?;
         return Err(SystemError::InvalidClusterSecret);
     }
 
-    info!("Received a valid cluster secret.");
+    info!(
+        "Received a valid cluster secret from node ID: {}.",
+        command.id
+    );
     handler.node_id = command.id;
     handler.send_empty_ok_response().await?;
-    info!("Sent a hello response.");
+    info!("Sent a hello response to node ID: {}.", command.id);
     if cluster.is_connected_to(command.id).await {
         info!(
             "The node: {}, ID: {} is already connected.",

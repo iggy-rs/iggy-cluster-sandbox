@@ -10,6 +10,13 @@ use std::fmt::{Display, Formatter};
 use std::rc::Rc;
 use tracing::{error, info};
 
+#[derive(Debug, Clone)]
+pub struct SelfNode {
+    pub id: u64,
+    pub name: String,
+    pub address: String,
+}
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum ClusterState {
     Uninitialized,
@@ -72,23 +79,21 @@ impl Display for ClusterNodeConnectionStatus {
 
 impl Cluster {
     pub fn new(
-        self_id: u64,
-        self_name: &str,
-        self_address: &str,
+        self_node: SelfNode,
         config: &ClusterConfig,
         streamer: Streamer,
     ) -> Result<Self, SystemError> {
         let mut nodes = Vec::new();
+        let self_node_id = self_node.id;
         nodes.push(Rc::new(ClusterNode {
             connection_status: Mutex::new(ClusterNodeConnectionStatus::Connected),
             state: Mutex::new(ClusterNodeState::Leader),
             node: Self::create_node(
-                self_id,
+                self_node.id,
                 &config.secret,
-                self_name,
-                self_name,
-                self_address,
-                true,
+                &self_node.name,
+                &self_node.address,
+                self_node.clone(),
                 config,
             )?,
         }));
@@ -100,9 +105,8 @@ impl Cluster {
                     node.id,
                     &config.secret,
                     &node.name,
-                    self_name,
                     &node.address,
-                    false,
+                    self_node.clone(),
                     config,
                 )?,
             };
@@ -111,7 +115,7 @@ impl Cluster {
 
         Ok(Self {
             state: Mutex::new(ClusterState::Uninitialized),
-            election_manager: ElectionManager::new(self_id, (nodes.len() / 2) + 1),
+            election_manager: ElectionManager::new(self_node_id, (nodes.len() / 2) + 1),
             nodes,
             streamer: Mutex::new(streamer),
             secret: config.secret.to_string(),
@@ -122,18 +126,16 @@ impl Cluster {
         id: u64,
         secret: &str,
         node_name: &str,
-        self_name: &str,
         node_address: &str,
-        is_self: bool,
+        self_node: SelfNode,
         config: &ClusterConfig,
     ) -> Result<Node, SystemError> {
         Node::new(
             id,
             secret,
             node_name,
-            self_name,
             node_address,
-            is_self,
+            self_node,
             Resiliency {
                 heartbeat_interval: config.heartbeat_interval,
                 reconnection_retries: config.reconnection_retries,
@@ -192,7 +194,7 @@ impl Cluster {
     pub fn get_self_node(&self) -> Option<Rc<ClusterNode>> {
         self.nodes
             .iter()
-            .find(|cluster_node| cluster_node.node.is_self)
+            .find(|cluster_node| cluster_node.node.is_self_node())
             .cloned()
     }
 

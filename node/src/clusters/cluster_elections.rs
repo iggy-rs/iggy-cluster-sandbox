@@ -18,7 +18,7 @@ impl Cluster {
             let election_state = self.election_manager.start_election(term).await;
             match election_state {
                 ElectionState::LeaderElected(leader_id) => {
-                    info!("Election for term: {term} has completed, leader ID: {leader_id}.");
+                    info!("Election in term: {term} has completed, leader ID: {leader_id}.");
                     if leader_id == self_node.node.id {
                         self_node.set_state(ClusterNodeState::Leader).await;
                         info!("Your role is leader, term: {term}.");
@@ -29,7 +29,7 @@ impl Cluster {
                     break;
                 }
                 ElectionState::NoLeaderElected => {
-                    info!("Election for term: {term} has completed, no leader elected, requesting votes...");
+                    info!("Election in term: {term} has completed, no leader elected, requesting votes...");
                     if self.request_votes(term).await.is_err() {
                         info!("Requesting votes failed.");
                         continue;
@@ -38,7 +38,11 @@ impl Cluster {
                     info!("Updating leader to your node, term: {term}...");
                     if self.update_leader(term).await.is_err() {
                         info!("Updating leader failed.");
+                        continue;
                     }
+
+                    info!("Election in term: {term} has completed, this node is a leader with ID: {}.", self_node.node.id);
+                    break;
                 }
             }
         }
@@ -53,7 +57,7 @@ impl Cluster {
         }
 
         for node in &self.nodes {
-            if node.node.is_self {
+            if node.node.is_self_node() {
                 continue;
             }
 
@@ -84,7 +88,7 @@ impl Cluster {
         let self_node_id = self_node.unwrap().node.id;
         self.vote(term, self_node_id, self_node_id).await?;
         for node in &self.nodes {
-            if node.node.is_self {
+            if node.node.is_self_node() {
                 continue;
             }
             info!("Requesting vote from node: {}...", node.node.id);

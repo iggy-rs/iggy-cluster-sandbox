@@ -1,3 +1,4 @@
+use crate::clusters::cluster::SelfNode;
 use crate::clusters::node_client::{ClientState, NodeClient};
 use crate::types::NodeId;
 use monoio::time::sleep;
@@ -11,7 +12,6 @@ pub struct Node {
     pub name: String,
     pub address: String,
     heartbeat: NodeHeartbeat,
-    pub is_self: bool,
     client: NodeClient,
 }
 
@@ -32,12 +32,11 @@ impl Node {
         id: NodeId,
         secret: &str,
         name: &str,
-        self_name: &str,
         address: &str,
-        is_self: bool,
+        self_node: SelfNode,
         resiliency: Resiliency,
     ) -> Result<Self, SystemError> {
-        let client = NodeClient::new(id, secret, self_name, address, resiliency)?;
+        let client = NodeClient::new(id, secret, self_node, address, resiliency)?;
         Ok(Self {
             id,
             name: name.to_string(),
@@ -45,13 +44,16 @@ impl Node {
             heartbeat: NodeHeartbeat {
                 interval: Duration::from_millis(resiliency.heartbeat_interval),
             },
-            is_self,
             client,
         })
     }
 
+    pub fn is_self_node(&self) -> bool {
+        self.client.is_self_node()
+    }
+
     pub async fn connect(&self) -> Result<(), SystemError> {
-        if self.is_self {
+        if self.is_self_node() {
             return Ok(());
         }
 
@@ -59,7 +61,7 @@ impl Node {
     }
 
     pub async fn start_heartbeat(&self) -> Result<(), SystemError> {
-        if self.is_self {
+        if self.is_self_node() {
             return Ok(());
         }
 
@@ -102,7 +104,7 @@ impl Node {
     }
 
     pub async fn request_vote(&self, term: u64) -> Result<(), SystemError> {
-        if self.is_self {
+        if self.is_self_node() {
             return Ok(());
         }
 
@@ -110,7 +112,7 @@ impl Node {
     }
 
     pub async fn update_leader(&self, term: u64) -> Result<(), SystemError> {
-        if self.is_self {
+        if self.is_self_node() {
             return Ok(());
         }
 
@@ -118,7 +120,7 @@ impl Node {
     }
 
     pub async fn disconnect(&self) -> Result<(), SystemError> {
-        if self.is_self {
+        if self.is_self_node() {
             return Ok(());
         }
 
@@ -126,7 +128,7 @@ impl Node {
     }
 
     pub async fn is_connected(&self) -> bool {
-        if self.is_self {
+        if self.is_self_node() {
             return true;
         }
 

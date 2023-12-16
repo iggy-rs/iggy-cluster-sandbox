@@ -4,7 +4,7 @@ use crate::handlers::*;
 use sdk::commands::command::Command;
 use sdk::error::SystemError;
 use std::rc::Rc;
-use tracing::info;
+use tracing::debug;
 
 pub async fn handle(
     handler: &mut ConnectionHandler,
@@ -13,7 +13,7 @@ pub async fn handle(
 ) -> Result<(), SystemError> {
     let command_name = command.get_name();
     let cluster = cluster.clone();
-    info!("Handling a TCP request, command: {command_name}...");
+    debug!("Handling a TCP request, command: {command_name}...");
     match command {
         Command::Hello(command) => {
             hello_handler::handle(handler, command, cluster).await?;
@@ -43,6 +43,6 @@ pub async fn handle(
             sync_messages_handler::handle(handler, command, cluster).await?;
         }
     }
-    info!("Handled a TCP request, command: {command_name}.");
+    debug!("Handled a TCP request, command: {command_name}.");
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::clusters::cluster::Cluster;
+use crate::clusters::cluster::{Cluster, SelfNode};
 use crate::configs::config_provider::FileConfigProvider;
 use crate::server::{public_server, sync_server};
 use crate::streaming::streamer::Streamer;
@@ -28,9 +28,11 @@ async fn main() -> Result<(), SystemError> {
     let mut streamer = Streamer::new(system_config.node.id, &system_config.stream.path);
     streamer.init().await;
     let cluster = Cluster::new(
-        system_config.node.id,
-        &system_config.node.name,
-        &system_config.node.address,
+        SelfNode::new(
+            system_config.node.id,
+            &system_config.node.name,
+            &system_config.node.address,
+        ),
         &system_config.cluster,
         streamer,
     )?;

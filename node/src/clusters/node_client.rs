@@ -1,3 +1,4 @@
+use crate::clusters::cluster::SelfNode;
 use crate::clusters::node::Resiliency;
 use crate::connection::handler::ConnectionHandler;
 use futures::lock::Mutex;
@@ -11,7 +12,7 @@ use sdk::error::SystemError;
 use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum ClientState {
@@ -26,11 +27,21 @@ pub enum HealthState {
     Unhealthy,
 }
 
+impl SelfNode {
+    pub fn new(id: u64, name: &str, address: &str) -> Self {
+        Self {
+            id,
+            name: name.to_string(),
+            address: address.to_string(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct NodeClient {
     pub id: u64,
     pub secret: String,
-    pub self_name: String,
+    pub self_node: SelfNode,
     pub address: SocketAddr,
     pub handler: Mutex<Option<ConnectionHandler>>,
     client_state: Mutex<ClientState>,
@@ -42,7 +53,7 @@ impl NodeClient {
     pub fn new(
         id: u64,
         secret: &str,
-        self_name: &str,
+        self_node: SelfNode,
         address: &str,
         resiliency: Resiliency,
     ) -> Result<Self, SystemError> {
@@ -57,7 +68,7 @@ impl NodeClient {
         Ok(Self {
             id,
             secret: secret.to_string(),
-            self_name: self_name.to_string(),
+            self_node,
             address: address.unwrap(),
             handler: Mutex::new(None),
             client_state: Mutex::new(ClientState::Disconnected),
@@ -66,9 +77,16 @@ impl NodeClient {
         })
     }
 
+    pub fn is_self_node(&self) -> bool {
+        self.id == self.self_node.id
+    }
+
     pub async fn connect(&self) -> Result<(), SystemError> {
         if self.get_client_state().await == ClientState::Connected {
-            warn!("Already connected to cluster node: {}", self.address);
+            warn!(
+                "Already connected to cluster node ID: {}, address: {}",
+                self.id, self.address
+            );
             return Ok(());
         }
 
@@ -76,17 +94,24 @@ impl NodeClient {
         let remote_address;
         let elapsed;
         loop {
-            info!("Connecting to cluster node: {}...", self.address);
+            info!(
+                "Connecting to cluster node ID: {}, address: {}...",
+                self.id, self.address
+            );
             let now = Instant::now();
             let connection = TcpStream::connect(self.address).await;
             if connection.is_err() {
-                error!("Failed to connect to cluster node: {}", self.address);
+                error!(
+                    "Failed to connect to cluster node ID: {}, address: {}.",
+                    self.id, self.address
+                );
                 if retry_count < self.resiliency.reconnection_retries {
                     retry_count += 1;
                     info!(
-                        "Retrying ({}/{}) to connect to cluster node: {} in: {} ms...",
+                        "Retrying ({}/{}) to connect to cluster node ID: {}, address: {}, in: {} ms...",
                         retry_count,
                         self.resiliency.reconnection_retries,
+                        self.id,
                         self.address,
                         self.resiliency.reconnection_interval
                     );
@@ -112,18 +137,21 @@ impl NodeClient {
         }
 
         info!(
-            "Connected to cluster node: {remote_address} in {} ms. Sending hello message...",
+            "Connected to cluster node ID: {}, address: {remote_address} in {} ms. Sending hello message...",
+            self.id,
             elapsed.as_millis()
         );
 
         self.send_request(&Hello::new_command(
             self.secret.clone(),
-            self.self_name.clone(),
-            self.id,
+            self.self_node.name.clone(),
+            self.self_node.id,
         ))
         .await?;
-        info!("Sent hello message to cluster node: {}", self.address);
-
+        info!(
+            "Sent hello message to cluster node ID: {}, address: {}",
+            self.id, self.address
+        );
         Ok(())
     }
 
@@ -134,28 +162,38 @@ impl NodeClient {
 
         let health_state = self.get_health_state().await;
         info!(
-            "Disconnecting from cluster node: {}, health state: {health_state}...",
-            self.address
+            "Disconnecting from cluster node ID: {}, address: {}, health state: {health_state}...",
+            self.id, self.address
         );
         self.set_client_state(ClientState::Disconnected).await;
         self.set_health_state(HealthState::Unknown).await;
         self.handler.lock().await.take();
-        info!("Disconnected from  cluster node: {}.", self.address);
+        info!(
+            "Disconnected from  cluster node ID: {}, address: {}.",
+            self.id, self.address
+        );
         Ok(())
     }
 
     pub async fn ping(&self) -> Result<(), SystemError> {
-        info!("Sending a ping to cluster node: {}...", self.address);
+        debug!(
+            "Sending a ping to cluster node ID: {}, address: {}...",
+            self.id, self.address
+        );
         let now = Instant::now();
         if let Err(error) = self.send_request(&Ping::new_command()).await {
-            error!("Failed to send a ping to cluster node: {}", self.address);
+            error!(
+                "Failed to send a ping to cluster node ID: {}, address: {}",
+                self.id, self.address
+            );
             self.set_health_state(HealthState::Unhealthy).await;
             self.set_client_state(ClientState::Disconnected).await;
             return Err(error);
         }
         let elapsed = now.elapsed();
-        info!(
-            "Received a pong from cluster node: {} in {} ms.",
+        debug!(
+            "Received a pong from cluster node ID: {}, address: {} in {} ms.",
+            self.id,
             self.address,
             elapsed.as_millis()
         );
@@ -164,42 +202,42 @@ impl NodeClient {
 
     pub async fn request_vote(&self, term: u64) -> Result<(), SystemError> {
         info!(
-            "Sending a request vote to cluster node: {}, term: {}...",
-            self.id, term
+            "Sending a request vote to cluster node ID: {}, address: {}, term: {}...",
+            self.id, self.address, term
         );
         let command = RequestVote::new_command(term);
         self.send_request(&command).await?;
         if let Err(error) = self.send_request(&command).await {
             error!(
-                "Failed to send a request vote to cluster node: {}, term: {}.",
-                self.address, term
+                "Failed to send a request vote to cluster node ID: {}, address: {}, term: {}.",
+                self.id, self.address, term
             );
             return Err(error);
         }
         info!(
-            "Received a request vote response from cluster node: {}",
-            self.id,
+            "Received a request vote response from cluster node ID: {}, address: {}, term: {}.",
+            self.id, self.address, term
         );
         Ok(())
     }
 
     pub async fn update_leader(&self, term: u64) -> Result<(), SystemError> {
         info!(
-            "Sending an update leader to cluster node: {}, term: {}...",
-            self.id, term
+            "Sending an update leader to cluster node ID: {}, address: {}, term: {}...",
+            self.id, self.address, term
         );
         let command = UpdateLeader::new_command(term);
         self.send_request(&command).await?;
         if let Err(error) = self.send_request(&command).await {
             error!(
-                "Failed to send an update leader to cluster node: {}, term: {}.",
-                self.address, term
+                "Failed to send an update leader to cluster node ID: {}, address: {}, term: {}.",
+                self.id, self.address, term
             );
             return Err(error);
         }
         info!(
-            "Received an update leader response from cluster node: {}",
-            self.id,
+            "Received an update leader response from cluster node ID: {}, address: {}, term: {}.",
+            self.id, self.address, term
         );
         Ok(())
     }

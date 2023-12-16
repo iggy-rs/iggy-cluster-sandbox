@@ -84,7 +84,11 @@ impl Default for ClusterConfig {
 
 impl Display for NodeConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{ name: {}, address: {} }}", self.name, self.address)
+        write!(
+            f,
+            "{{ id: {}, name: {}, address: {} }}",
+            self.id, self.name, self.address
+        )
     }
 }
 
