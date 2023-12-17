@@ -4,6 +4,7 @@ use monoio::io::{AsyncReadRent, AsyncWriteRentExt};
 use monoio::net::TcpStream;
 use sdk::commands::command::Command;
 use sdk::error::SystemError;
+use std::net::SocketAddr;
 use tracing::{debug, error};
 
 const STATUS_OK: u32 = 0;
@@ -13,12 +14,17 @@ const EMPTY_BYTES: Vec<u8> = vec![];
 #[derive(Debug)]
 pub(crate) struct ConnectionHandler {
     stream: TcpStream,
+    pub address: SocketAddr,
     pub node_id: NodeId,
 }
 
 impl ConnectionHandler {
-    pub fn new(stream: TcpStream, node_id: NodeId) -> Self {
-        Self { stream, node_id }
+    pub fn new(stream: TcpStream, address: SocketAddr, node_id: NodeId) -> Self {
+        Self {
+            stream,
+            address,
+            node_id,
+        }
     }
 
     pub async fn read(&mut self, buffer: Vec<u8>) -> Result<(usize, Vec<u8>), SystemError> {
@@ -37,12 +43,22 @@ impl ConnectionHandler {
         self.send(command.as_bytes(), true).await
     }
 
-    pub async fn send_error_response(&mut self, error: SystemError) -> Result<(), SystemError> {
+    pub async fn send_error_response(
+        &mut self,
+        error: SystemError,
+    ) -> Result<(usize, Vec<u8>), SystemError> {
         let mut data = Vec::with_capacity(8);
         data.put_u32_le(error.as_code());
-        data.put_u32_le(0);
-        self.send(data, false).await?;
-        Ok(())
+        match error {
+            SystemError::InvalidTerm(term) => {
+                data.put_u32_le(8);
+                data.put_u64_le(term);
+            }
+            _ => {
+                data.put_u32_le(0);
+            }
+        };
+        self.send(data, false).await
     }
 
     pub async fn send_empty_ok_response(&mut self) -> Result<(), SystemError> {
@@ -79,19 +95,26 @@ impl ConnectionHandler {
         let (read_bytes, buffer) = self.stream.read(buffer).await;
         if read_bytes.is_err() {
             error!("Failed to read a response: {:?}", read_bytes.err());
-            return Err(SystemError::InvalidResponse);
+            return Err(SystemError::InvalidResponse(0, None));
         }
 
         let read_bytes = read_bytes.unwrap();
         if read_bytes != RESPONSE_INITIAL_BYTES_LENGTH {
             error!("Received an invalid response.");
-            return Err(SystemError::InvalidResponse);
+            return Err(SystemError::InvalidResponse(0, None));
         }
 
         let status = u32::from_le_bytes(buffer[..4].try_into().unwrap());
+        let payload_length = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
         if status != 0 {
             error!("Received an invalid response with status: {status}.");
-            return Err(SystemError::InvalidResponse);
+            if payload_length == 0 {
+                return Err(SystemError::InvalidResponse(status, None));
+            }
+
+            let buffer = vec![0u8; payload_length as usize];
+            let (_, buffer) = self.read(buffer).await?;
+            return Err(SystemError::InvalidResponse(status, Some(buffer)));
         }
 
         let payload_length = u32::from_le_bytes(buffer[4..8].try_into().unwrap());

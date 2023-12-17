@@ -26,7 +26,7 @@ pub enum ClusterState {
 #[derive(Debug)]
 pub struct Cluster {
     pub state: Mutex<ClusterState>,
-    pub nodes: Vec<Rc<ClusterNode>>,
+    pub nodes: HashMap<u64, Rc<ClusterNode>>,
     pub streamer: Mutex<Streamer>,
     pub secret: String,
     pub election_manager: ElectionManager,
@@ -83,20 +83,23 @@ impl Cluster {
         config: &ClusterConfig,
         streamer: Streamer,
     ) -> Result<Self, SystemError> {
-        let mut nodes = Vec::new();
+        let mut nodes = HashMap::new();
         let self_node_id = self_node.id;
-        nodes.push(Rc::new(ClusterNode {
-            connection_status: Mutex::new(ClusterNodeConnectionStatus::Connected),
-            state: Mutex::new(ClusterNodeState::Leader),
-            node: Self::create_node(
-                self_node.id,
-                &config.secret,
-                &self_node.name,
-                &self_node.address,
-                self_node.clone(),
-                config,
-            )?,
-        }));
+        nodes.insert(
+            self_node.id,
+            Rc::new(ClusterNode {
+                connection_status: Mutex::new(ClusterNodeConnectionStatus::Connected),
+                state: Mutex::new(ClusterNodeState::Leader),
+                node: Self::create_node(
+                    self_node.id,
+                    &config.secret,
+                    &self_node.name,
+                    &self_node.address,
+                    self_node.clone(),
+                    config,
+                )?,
+            }),
+        );
         for node in &config.nodes {
             let cluster_node = ClusterNode {
                 state: Mutex::new(ClusterNodeState::Follower),
@@ -110,7 +113,7 @@ impl Cluster {
                     config,
                 )?,
             };
-            nodes.push(Rc::new(cluster_node));
+            nodes.insert(node.id, Rc::new(cluster_node));
         }
 
         Ok(Self {
@@ -148,8 +151,8 @@ impl Cluster {
         info!("Connecting all cluster nodes...");
         let mut connections = 0;
         let expected_connections = (self.nodes.len() / 2) + 1;
-        for node in self.nodes.clone() {
-            if Self::init_node_connection(node).await.is_ok() {
+        for node in self.nodes.values() {
+            if Self::init_node_connection(node.clone()).await.is_ok() {
                 connections += 1;
             }
         }
@@ -180,10 +183,7 @@ impl Cluster {
     }
 
     pub async fn connect_to(&self, node_id: u64) -> Result<(), SystemError> {
-        let cluster_node = self
-            .nodes
-            .iter()
-            .find(|cluster_node| cluster_node.node.id == node_id);
+        let cluster_node = self.nodes.get(&node_id);
         if cluster_node.is_none() {
             return Err(SystemError::InvalidNode(node_id));
         }
@@ -193,7 +193,7 @@ impl Cluster {
 
     pub fn get_self_node(&self) -> Option<Rc<ClusterNode>> {
         self.nodes
-            .iter()
+            .values()
             .find(|cluster_node| cluster_node.node.is_self_node())
             .cloned()
     }
@@ -227,7 +227,11 @@ impl Cluster {
             "Starting heartbeat for all cluster nodes {}...",
             self.nodes.len()
         );
-        for cluster_node in &self.nodes {
+        for cluster_node in self.nodes.values() {
+            if cluster_node.node.is_self_node() {
+                continue;
+            }
+
             let node_name = cluster_node.node.name.clone();
             let cluster_node = cluster_node.clone();
             Self::start_heartbeat_for_node(cluster_node).unwrap_or_else(|error| {
@@ -241,12 +245,11 @@ impl Cluster {
         Ok(())
     }
 
+    // TODO: Make use of this once the missing node has recovered.
+    #[allow(dead_code)]
     pub fn start_heartbeat_for(&self, node_id: u64) -> Result<(), SystemError> {
         info!("Starting heartbeat for node ID: {node_id}...");
-        let cluster_node = self
-            .nodes
-            .iter()
-            .find(|cluster_node| cluster_node.node.id == node_id);
+        let cluster_node = self.nodes.get(&node_id);
         if cluster_node.is_none() {
             return Err(SystemError::InvalidNode(node_id));
         }
@@ -275,7 +278,7 @@ impl Cluster {
 
     pub async fn disconnect(&self) -> Result<(), SystemError> {
         info!("Disconnecting all cluster nodes...");
-        for cluster_node in &self.nodes {
+        for cluster_node in self.nodes.values() {
             cluster_node.node.disconnect().await?;
             *cluster_node.connection_status.lock().await =
                 ClusterNodeConnectionStatus::Disconnected;
@@ -286,7 +289,7 @@ impl Cluster {
     }
 
     pub async fn is_connected_to(&self, node_id: u64) -> bool {
-        for cluster_node in &self.nodes {
+        for cluster_node in self.nodes.values() {
             if cluster_node.node.id == node_id {
                 return cluster_node.node.is_connected().await;
             }
@@ -314,7 +317,7 @@ impl Cluster {
         };
         metadata.nodes = self
             .nodes
-            .iter()
+            .values()
             .map(|node| {
                 (
                     node.node.id,

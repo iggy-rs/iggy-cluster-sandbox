@@ -1,7 +1,7 @@
 use crate::clusters::node_client::{ClientState, NodeClient};
 use sdk::commands::command::Command;
 use sdk::error::SystemError;
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 
 impl NodeClient {
     pub async fn send_request(&self, command: &Command) -> Result<(), SystemError> {
@@ -17,15 +17,21 @@ impl NodeClient {
             return Err(SystemError::ClientDisconnected);
         }
 
-        debug!("Sending a request to cluster node: {}...", self.address);
+        debug!(
+            "Sending a request to cluster node with address: {}...",
+            self.address
+        );
         let handler = stream.as_mut().unwrap();
         let result = handler.send_request(command).await;
         if result.is_err() {
-            error!("Failed to send a request: {:?}", result.err());
+            debug!("Failed to send a request: {:?}", result.err());
             return Err(SystemError::SendRequestFailed);
         }
 
-        debug!("Sent a request to cluster node: {}.", self.address);
+        debug!(
+            "Sent a request to cluster node with address: {}.",
+            self.address
+        );
         Ok(())
     }
 }

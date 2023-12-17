@@ -24,7 +24,7 @@ pub fn start(name: &str, address: &str, cluster: Rc<Cluster>) {
             match listener.accept().await {
                 Ok((stream, address)) => {
                     info!("{server_name} has accepted new TCP connection: {address}");
-                    let mut connection = ConnectionHandler::new(stream, 0);
+                    let mut connection = ConnectionHandler::new(stream, address, 0);
                     monoio::spawn(async move {
                         if let Err(error) = listen(&mut connection, cluster).await {
                             handle_error(error);

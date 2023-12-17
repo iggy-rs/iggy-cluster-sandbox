@@ -40,7 +40,6 @@ async fn main() -> Result<(), SystemError> {
     sync_server::start(&system_config.node.address, cluster.clone());
     public_server::start(&system_config.server.address, cluster.clone());
     cluster.connect().await?;
-    cluster.start_heartbeat()?;
     cluster.start_election().await?;
     info!("Press CTRL+C shutdown Iggy node...");
     CtrlC::new().unwrap().await;

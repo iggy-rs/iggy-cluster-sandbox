@@ -25,7 +25,7 @@ pub enum SystemError {
     #[error("Invalid request")]
     InvalidRequest,
     #[error("Invalid response")]
-    InvalidResponse,
+    InvalidResponse(u32, Option<Vec<u8>>),
     #[error("Client disconnected")]
     ClientDisconnected,
     #[error("Send request failed")]
@@ -48,10 +48,14 @@ pub enum SystemError {
     InvalidCount,
     #[error("Invalid stream ID")]
     InvalidStreamId,
-    #[error("Vote rejected")]
-    VoteRejected,
     #[error("Leader rejected")]
     LeaderRejected,
+    #[error("Already voted")]
+    AlreadyVoted,
+    #[error("Elections over")]
+    ElectionsOver,
+    #[error("Invalid term: {0}")]
+    InvalidTerm(u64),
 }
 
 impl SystemError {
@@ -67,7 +71,7 @@ impl SystemError {
             SystemError::InvalidClusterNodeAddress(_) => 8,
             SystemError::InvalidCommandCode(_) => 9,
             SystemError::InvalidRequest => 10,
-            SystemError::InvalidResponse => 11,
+            SystemError::InvalidResponse(_, _) => 11,
             SystemError::ClientDisconnected => 12,
             SystemError::SendRequestFailed => 13,
             SystemError::InvalidCommand => 14,
@@ -79,8 +83,10 @@ impl SystemError {
             SystemError::InvalidOffset => 20,
             SystemError::InvalidCount => 21,
             SystemError::InvalidStreamId => 22,
-            SystemError::VoteRejected => 23,
-            SystemError::LeaderRejected => 24,
+            SystemError::LeaderRejected => 23,
+            SystemError::AlreadyVoted => 24,
+            SystemError::ElectionsOver => 25,
+            SystemError::InvalidTerm(_) => 26,
         }
     }
 }

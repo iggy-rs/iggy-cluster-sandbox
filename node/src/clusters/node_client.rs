@@ -127,10 +127,11 @@ impl NodeClient {
             elapsed = now.elapsed();
             let stream = connection.unwrap();
             remote_address = stream.peer_addr()?;
-            self.handler
-                .lock()
-                .await
-                .replace(ConnectionHandler::new(stream, self.id));
+            self.handler.lock().await.replace(ConnectionHandler::new(
+                stream,
+                remote_address,
+                self.id,
+            ));
             self.set_client_state(ClientState::Connected).await;
             self.set_health_state(HealthState::Healthy).await;
             break;
@@ -202,20 +203,19 @@ impl NodeClient {
 
     pub async fn request_vote(&self, term: u64) -> Result<(), SystemError> {
         info!(
-            "Sending a request vote to cluster node ID: {}, address: {}, term: {}...",
+            "Sending a request vote to cluster node ID: {}, address: {} in term: {}...",
             self.id, self.address, term
         );
         let command = RequestVote::new_command(term);
-        self.send_request(&command).await?;
         if let Err(error) = self.send_request(&command).await {
             error!(
-                "Failed to send a request vote to cluster node ID: {}, address: {}, term: {}.",
+                "Failed to send a request vote to cluster node ID: {}, address: {} in term: {}.",
                 self.id, self.address, term
             );
             return Err(error);
         }
         info!(
-            "Received a request vote response from cluster node ID: {}, address: {}, term: {}.",
+            "Received a request vote response from cluster node ID: {}, address: {} in term: {}.",
             self.id, self.address, term
         );
         Ok(())
@@ -223,20 +223,20 @@ impl NodeClient {
 
     pub async fn update_leader(&self, term: u64) -> Result<(), SystemError> {
         info!(
-            "Sending an update leader to cluster node ID: {}, address: {}, term: {}...",
+            "Sending an update leader to cluster node ID: {}, address: {} in term: {}...",
             self.id, self.address, term
         );
         let command = UpdateLeader::new_command(term);
         self.send_request(&command).await?;
         if let Err(error) = self.send_request(&command).await {
             error!(
-                "Failed to send an update leader to cluster node ID: {}, address: {}, term: {}.",
+                "Failed to send an update leader to cluster node ID: {}, address: {} in term: {}.",
                 self.id, self.address, term
             );
             return Err(error);
         }
         info!(
-            "Received an update leader response from cluster node ID: {}, address: {}, term: {}.",
+            "Received an update leader response from cluster node ID: {}, address: {} in term: {}.",
             self.id, self.address, term
         );
         Ok(())

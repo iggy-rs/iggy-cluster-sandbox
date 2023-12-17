@@ -87,8 +87,11 @@ impl Node {
                     self.connect().await?;
                     continue;
                 }
-                SystemError::InvalidResponse => {
-                    error!("Received invalid response from cluster node: {}", self.name);
+                SystemError::InvalidResponse(status, _) => {
+                    error!(
+                        "Received invalid response with status: {status} from cluster node: {}",
+                        self.name
+                    );
                     self.connect().await?;
                     continue;
                 }

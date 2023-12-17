@@ -41,7 +41,6 @@ pub(crate) async fn handle(
         command.name, command.id
     );
     cluster.connect_to(command.id).await?;
-    cluster.start_heartbeat_for(command.id)?;
     info!(
         "Connected to the previously disconnected node: {}, ID: {}.",
         command.name, command.id
