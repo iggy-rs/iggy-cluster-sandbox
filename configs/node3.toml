@@ -15,6 +15,8 @@ heartbeat_interval = 3000
 reconnection_interval = 1000
 reconnection_retries = 10
 secret = "secret123!"
+election_timeout_range_from = 150
+election_timeout_range_to = 300
 
 [[cluster.nodes]]
 id = 1

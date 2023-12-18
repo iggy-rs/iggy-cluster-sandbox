@@ -2,6 +2,7 @@ use crate::clusters::election::ElectionManager;
 use crate::clusters::node::{Node, Resiliency};
 use crate::configs::config::ClusterConfig;
 use crate::streaming::streamer::Streamer;
+use crate::types::NodeId;
 use futures::lock::Mutex;
 use sdk::error::SystemError;
 use sdk::models::metadata::{Metadata, NodeInfo, StreamInfo};
@@ -118,7 +119,14 @@ impl Cluster {
 
         Ok(Self {
             state: Mutex::new(ClusterState::Uninitialized),
-            election_manager: ElectionManager::new(self_node_id, (nodes.len() / 2) + 1),
+            election_manager: ElectionManager::new(
+                self_node_id,
+                nodes.len() as u64,
+                (
+                    config.election_timeout_range_from,
+                    config.election_timeout_range_to,
+                ),
+            ),
             nodes,
             streamer: Mutex::new(streamer),
             secret: config.secret.to_string(),
@@ -196,6 +204,25 @@ impl Cluster {
             .values()
             .find(|cluster_node| cluster_node.node.is_self_node())
             .cloned()
+    }
+
+    pub async fn handle_disconnected_node(&self, node_id: NodeId) {
+        info!("Handling disconnected node: {}", node_id);
+        let cluster_node = self.nodes.get(&node_id);
+        if cluster_node.is_none() {
+            error!("Invalid node ID: {}", node_id);
+            return;
+        }
+
+        let leader_id = self.election_manager.get_leader_id().await;
+        if let Some(leader_id) = leader_id {
+            if leader_id == node_id {
+                info!("Leader node: {} has disconnected.", node_id);
+                if let Err(error) = self.start_election().await {
+                    error!("Failed to start election, error: {}", error);
+                }
+            }
+        }
     }
 
     async fn connect_to_node(cluster_node: &ClusterNode) -> Result<(), SystemError> {

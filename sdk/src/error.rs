@@ -56,6 +56,8 @@ pub enum SystemError {
     ElectionsOver,
     #[error("Invalid term: {0}")]
     InvalidTerm(u64),
+    #[error("Leader already elected")]
+    LeaderAlreadyElected,
 }
 
 impl SystemError {
@@ -87,6 +89,7 @@ impl SystemError {
             SystemError::AlreadyVoted => 24,
             SystemError::ElectionsOver => 25,
             SystemError::InvalidTerm(_) => 26,
+            SystemError::LeaderAlreadyElected => 27,
         }
     }
 }

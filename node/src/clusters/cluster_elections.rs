@@ -18,7 +18,16 @@ impl Cluster {
             info!("Set term: {term}.");
             let election_state = self.election_manager.start_election(term).await;
             match election_state {
+                ElectionState::TermChanged(new_term) => {
+                    if let Some(leader) = self.election_manager.get_leader_id().await {
+                        info!("Leader ID: {leader} was elected in new term: {new_term}.");
+                        break;
+                    }
+                    warn!("No leader elected in term: {new_term}.");
+                    continue;
+                }
                 ElectionState::LeaderElected(leader_id) => {
+                    let term = self.election_manager.get_current_term().await;
                     info!("Election in term: {term} has completed, leader ID: {leader_id}.");
                     if leader_id == self_node.node.id {
                         self_node.set_state(ClusterNodeState::Leader).await;
@@ -31,6 +40,7 @@ impl Cluster {
                     break;
                 }
                 ElectionState::NoLeaderElected => {
+                    let term = self.election_manager.get_current_term().await;
                     info!("Election in term: {term} has completed, no leader elected, requesting votes...");
                     if self.request_votes(term).await.is_err() {
                         warn!("Requesting votes failed.");
@@ -61,12 +71,36 @@ impl Cluster {
         Ok(())
     }
 
+    pub async fn set_leader(&self, term: TermId, leader_id: NodeId) -> Result<(), SystemError> {
+        if self
+            .election_manager
+            .set_leader(term, leader_id)
+            .await
+            .is_err()
+        {
+            warn!("Setting leader failed.");
+            return Ok(());
+        }
+
+        for node in self.nodes.values() {
+            if node.node.is_self_node() {
+                continue;
+            }
+
+            node.node.set_leader(term, leader_id).await;
+        }
+
+        Ok(())
+    }
+
     pub async fn update_leader(&self, term: TermId) -> Result<(), SystemError> {
         let self_node = self.get_self_node();
         if self_node.is_none() {
             return Err(SystemError::UnhealthyCluster);
         }
 
+        let leader_id = self_node.unwrap().node.id;
+        let mut updated_nodes_count = 1;
         for node in self.nodes.values() {
             if node.node.is_self_node() {
                 continue;
@@ -76,14 +110,20 @@ impl Cluster {
                 "Updating leader, sending request to node ID: {}...",
                 node.node.id
             );
-            if let Err(err) = node.node.update_leader(term).await {
-                info!(
+            if let Err(err) = node.node.update_leader(term, leader_id).await {
+                error!(
                     "Update leader request failed in node ID: {} with: {err}.",
                     node.node.id
                 );
                 continue;
             }
+            updated_nodes_count += 1;
+            node.node.set_leader(term, leader_id).await;
             info!("Update leader request sent to node ID: {}.", node.node.id);
+        }
+
+        if updated_nodes_count < self.election_manager.get_required_votes_count() {
+            return Err(SystemError::LeaderRejected);
         }
 
         Ok(())
@@ -98,7 +138,7 @@ impl Cluster {
         info!("Voting for yourself in term: {term}...");
         let self_node_id = self_node.unwrap().node.id;
         self.vote(term, self_node_id, self_node_id).await?;
-        let mut votes_count = 0;
+        let mut votes_count = 1;
         for node in self.nodes.values() {
             if node.node.is_self_node() {
                 continue;
@@ -117,9 +157,11 @@ impl Cluster {
                         if status == 26 {
                             let payload = payload.unwrap();
                             let new_term = u64::from_le_bytes(payload.try_into().unwrap());
-                            error!("Invalid current term, new term: {new_term}");
-                            self.election_manager.set_term(new_term).await;
-                            continue;
+                            if new_term > term {
+                                error!("Invalid current term: {term}, new term: {new_term}");
+                                self.election_manager.set_term(new_term).await;
+                                continue;
+                            }
                         } else {
                             error!(
                                 "Invalid response from node: {node_id}.",
@@ -133,7 +175,7 @@ impl Cluster {
                             "Vote request from node: {} in term: {term} failed, error: {err}.",
                             node.node.id
                         );
-                        return Err(err);
+                        continue;
                     }
                 }
             }

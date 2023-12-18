@@ -26,8 +26,12 @@ pub fn start(name: &str, address: &str, cluster: Rc<Cluster>) {
                     info!("{server_name} has accepted new TCP connection: {address}");
                     let mut connection = ConnectionHandler::new(stream, address, 0);
                     monoio::spawn(async move {
+                        let cluster_error = cluster.clone();
                         if let Err(error) = listen(&mut connection, cluster).await {
-                            handle_error(error);
+                            handle_error(error, &connection);
+                            cluster_error
+                                .handle_disconnected_node(connection.node_id)
+                                .await;
                         }
                     });
                 }
@@ -40,27 +44,45 @@ pub fn start(name: &str, address: &str, cluster: Rc<Cluster>) {
     info!("{name} has started on TCP address: {node_address}");
 }
 
-fn handle_error(error: SystemError) {
+fn handle_error(error: SystemError, connection_handler: &ConnectionHandler) {
     match error {
         SystemError::IoError(error) => match error.kind() {
             ErrorKind::UnexpectedEof => {
-                info!("Connection has been closed.");
+                info!(
+                    "Connection has been closed by node ID: {} with address: {}.",
+                    connection_handler.node_id, connection_handler.address
+                );
             }
             ErrorKind::ConnectionAborted => {
-                info!("Connection has been aborted.");
+                info!(
+                    "Connection has been aborted by node ID: {} with address: {}.",
+                    connection_handler.node_id, connection_handler.address
+                );
             }
             ErrorKind::ConnectionRefused => {
-                info!("Connection has been refused.");
+                info!(
+                    "Connection has been refused by node ID: {} with address: {}.",
+                    connection_handler.node_id, connection_handler.address
+                );
             }
             ErrorKind::ConnectionReset => {
-                info!("Connection has been reset.");
+                info!(
+                    "Connection has been reset by node ID: {} with address: {}.",
+                    connection_handler.node_id, connection_handler.address
+                );
             }
             _ => {
-                error!("Connection has failed: {error}");
+                error!(
+                    "Connection has failed by node ID: {} with address: {}. Error: {error}",
+                    connection_handler.node_id, connection_handler.address
+                );
             }
         },
         _ => {
-            error!("Connection has failed: {error}");
+            error!(
+                "Connection has failed by node ID: {} with address: {}. Error: {error}",
+                connection_handler.node_id, connection_handler.address
+            );
         }
     }
 }

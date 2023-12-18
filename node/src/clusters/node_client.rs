@@ -1,6 +1,7 @@
 use crate::clusters::cluster::SelfNode;
 use crate::clusters::node::Resiliency;
 use crate::connection::handler::ConnectionHandler;
+use crate::types::{NodeId, TermId};
 use futures::lock::Mutex;
 use monoio::net::TcpStream;
 use monoio::time::sleep;
@@ -47,6 +48,8 @@ pub struct NodeClient {
     client_state: Mutex<ClientState>,
     health_state: Mutex<HealthState>,
     resiliency: Resiliency,
+    term: Mutex<TermId>,
+    leader_id: Mutex<Option<NodeId>>,
 }
 
 impl NodeClient {
@@ -74,11 +77,18 @@ impl NodeClient {
             client_state: Mutex::new(ClientState::Disconnected),
             health_state: Mutex::new(HealthState::Unknown),
             resiliency,
+            term: Mutex::new(0),
+            leader_id: Mutex::new(None),
         })
     }
 
     pub fn is_self_node(&self) -> bool {
         self.id == self.self_node.id
+    }
+
+    pub async fn set_leader(&self, term: TermId, leader_id: NodeId) {
+        *self.term.lock().await = term;
+        *self.leader_id.lock().await = Some(leader_id);
     }
 
     pub async fn connect(&self) -> Result<(), SystemError> {
@@ -143,10 +153,14 @@ impl NodeClient {
             elapsed.as_millis()
         );
 
+        let term = *self.term.lock().await;
+        let leader_id = *self.leader_id.lock().await;
         self.send_request(&Hello::new_command(
             self.secret.clone(),
             self.self_node.name.clone(),
             self.self_node.id,
+            term,
+            leader_id,
         ))
         .await?;
         info!(
@@ -176,13 +190,13 @@ impl NodeClient {
         Ok(())
     }
 
-    pub async fn ping(&self) -> Result<(), SystemError> {
+    pub async fn ping(&self, term: u64, leader_id: Option<u64>) -> Result<(), SystemError> {
         debug!(
             "Sending a ping to cluster node ID: {}, address: {}...",
             self.id, self.address
         );
         let now = Instant::now();
-        if let Err(error) = self.send_request(&Ping::new_command()).await {
+        if let Err(error) = self.send_request(&Ping::new_command(term, leader_id)).await {
             error!(
                 "Failed to send a ping to cluster node ID: {}, address: {}",
                 self.id, self.address
@@ -221,23 +235,23 @@ impl NodeClient {
         Ok(())
     }
 
-    pub async fn update_leader(&self, term: u64) -> Result<(), SystemError> {
+    pub async fn update_leader(&self, term: u64, leader_id: u64) -> Result<(), SystemError> {
         info!(
-            "Sending an update leader to cluster node ID: {}, address: {} in term: {}...",
-            self.id, self.address, term
+            "Sending an update leader ID: {leader_id} to cluster node ID: {}, address: {} in term: {term}...",
+            self.id, self.address
         );
-        let command = UpdateLeader::new_command(term);
+        let command = UpdateLeader::new_command(term, leader_id);
         self.send_request(&command).await?;
         if let Err(error) = self.send_request(&command).await {
             error!(
-                "Failed to send an update leader to cluster node ID: {}, address: {} in term: {}.",
-                self.id, self.address, term
+                "Failed to send an update leader ID: {leader_id} to cluster node ID: {}, address: {} in term: {term}.",
+                self.id, self.address
             );
             return Err(error);
         }
         info!(
-            "Received an update leader response from cluster node ID: {}, address: {} in term: {}.",
-            self.id, self.address, term
+            "Received an update leader ID: {leader_id} response from cluster node ID: {}, address: {} in term: {term}.",
+            self.id, self.address,
         );
         Ok(())
     }

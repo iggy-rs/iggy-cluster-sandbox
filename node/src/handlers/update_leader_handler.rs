@@ -10,10 +10,7 @@ pub(crate) async fn handle(
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {
     cluster.verify_is_healthy().await?;
-    cluster
-        .election_manager
-        .set_leader(command.term, handler.node_id)
-        .await?;
+    cluster.set_leader(command.term, command.leader_id).await?;
     handler.send_empty_ok_response().await?;
     Ok(())
 }

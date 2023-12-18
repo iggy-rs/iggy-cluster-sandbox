@@ -1,6 +1,7 @@
 use crate::clusters::cluster::SelfNode;
 use crate::clusters::node_client::{ClientState, NodeClient};
-use crate::types::NodeId;
+use crate::types::{NodeId, TermId};
+use futures::lock::Mutex;
 use monoio::time::sleep;
 use sdk::error::SystemError;
 use std::time::Duration;
@@ -11,6 +12,8 @@ pub struct Node {
     pub id: NodeId,
     pub name: String,
     pub address: String,
+    term: Mutex<TermId>,
+    leader_id: Mutex<Option<NodeId>>,
     heartbeat: NodeHeartbeat,
     client: NodeClient,
 }
@@ -44,8 +47,16 @@ impl Node {
             heartbeat: NodeHeartbeat {
                 interval: Duration::from_millis(resiliency.heartbeat_interval),
             },
+            term: Mutex::new(0),
+            leader_id: Mutex::new(None),
             client,
         })
+    }
+
+    pub async fn set_leader(&self, term: TermId, leader_id: NodeId) {
+        *self.term.lock().await = term;
+        *self.leader_id.lock().await = Some(leader_id);
+        self.client.set_leader(term, leader_id).await;
     }
 
     pub fn is_self_node(&self) -> bool {
@@ -68,7 +79,9 @@ impl Node {
         info!("Starting heartbeat for cluster node: {}...", self.name);
         loop {
             sleep(self.heartbeat.interval).await;
-            let ping = self.client.ping().await;
+            let term = *self.term.lock().await;
+            let leader_id = *self.leader_id.lock().await;
+            let ping = self.client.ping(term, leader_id).await;
             if ping.is_ok() {
                 info!("Heartbeat passed for cluster node: {}", self.name);
                 continue;
@@ -114,12 +127,12 @@ impl Node {
         self.client.request_vote(term).await
     }
 
-    pub async fn update_leader(&self, term: u64) -> Result<(), SystemError> {
+    pub async fn update_leader(&self, term: u64, leader_id: u64) -> Result<(), SystemError> {
         if self.is_self_node() {
             return Ok(());
         }
 
-        self.client.update_leader(term).await
+        self.client.update_leader(term, leader_id).await
     }
 
     pub async fn disconnect(&self) -> Result<(), SystemError> {

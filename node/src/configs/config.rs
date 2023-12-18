@@ -34,6 +34,8 @@ pub(crate) struct ClusterConfig {
     pub reconnection_retries: u32,
     pub secret: String,
     pub nodes: Vec<ClusterNodeConfig>,
+    pub election_timeout_range_from: u64,
+    pub election_timeout_range_to: u64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -78,6 +80,8 @@ impl Default for ClusterConfig {
             reconnection_retries: 10,
             secret: "secret123!".to_string(),
             nodes: vec![],
+            election_timeout_range_from: 100,
+            election_timeout_range_to: 300,
         }
     }
 }

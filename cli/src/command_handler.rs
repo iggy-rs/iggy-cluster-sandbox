@@ -25,10 +25,6 @@ pub(crate) async fn handle(command: Command, client: &ClusterClient) -> Result<(
                 .await?;
             info!("Appended {count} messages");
         }
-        Command::Ping(_) => {
-            client.ping().await?;
-            info!("Pinged cluster");
-        }
         Command::GetMetadata(_) => {
             let metadata = client.get_metadata().await?;
             info!("Metadata: {metadata}");
