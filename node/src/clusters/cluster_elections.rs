@@ -1,6 +1,6 @@
 use crate::clusters::cluster::{Cluster, ClusterNodeState};
 use crate::clusters::election::ElectionState;
-use crate::types::{CandidateId, NodeId, TermId};
+use crate::types::{CandidateId, NodeId, Term};
 use sdk::error::SystemError;
 use tracing::{error, info, warn};
 
@@ -13,6 +13,11 @@ impl Cluster {
 
         let self_node = self_node.unwrap();
         loop {
+            if let Some(leader) = self.election_manager.get_leader_id().await {
+                info!("Leader ID: {leader} was already elected. Skipping election.");
+                break;
+            }
+
             self_node.set_state(ClusterNodeState::Candidate).await;
             let term = self.election_manager.next_term().await;
             info!("Set term: {term}.");
@@ -20,7 +25,7 @@ impl Cluster {
             match election_state {
                 ElectionState::TermChanged(new_term) => {
                     if let Some(leader) = self.election_manager.get_leader_id().await {
-                        info!("Leader ID: {leader} was elected in new term: {new_term}.");
+                        info!("Leader ID: {leader} was already elected in new term: {new_term}.");
                         break;
                     }
                     warn!("No leader elected in term: {new_term}.");
@@ -71,7 +76,7 @@ impl Cluster {
         Ok(())
     }
 
-    pub async fn set_leader(&self, term: TermId, leader_id: NodeId) -> Result<(), SystemError> {
+    pub async fn set_leader(&self, term: Term, leader_id: NodeId) -> Result<(), SystemError> {
         if self
             .election_manager
             .set_leader(term, leader_id)
@@ -93,7 +98,7 @@ impl Cluster {
         Ok(())
     }
 
-    pub async fn update_leader(&self, term: TermId) -> Result<(), SystemError> {
+    pub async fn update_leader(&self, term: Term) -> Result<(), SystemError> {
         let self_node = self.get_self_node();
         if self_node.is_none() {
             return Err(SystemError::UnhealthyCluster);
@@ -129,7 +134,7 @@ impl Cluster {
         Ok(())
     }
 
-    pub async fn request_votes(&self, term: TermId) -> Result<(), SystemError> {
+    pub async fn request_votes(&self, term: Term) -> Result<(), SystemError> {
         let self_node = self.get_self_node();
         if self_node.is_none() {
             return Err(SystemError::UnhealthyCluster);
@@ -192,7 +197,7 @@ impl Cluster {
         Ok(())
     }
 
-    pub async fn has_majority_votes(&self, term: TermId) -> bool {
+    pub async fn has_majority_votes(&self, term: Term) -> bool {
         let self_node = self.get_self_node();
         if self_node.is_none() {
             return false;
@@ -206,7 +211,7 @@ impl Cluster {
 
     pub async fn vote(
         &self,
-        term: TermId,
+        term: Term,
         candidate_id: CandidateId,
         node_id: NodeId,
     ) -> Result<(), SystemError> {

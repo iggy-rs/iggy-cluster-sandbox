@@ -1,6 +1,6 @@
 use crate::clusters::cluster::SelfNode;
 use crate::clusters::node_client::{ClientState, NodeClient};
-use crate::types::{NodeId, TermId};
+use crate::types::{NodeId, Term};
 use futures::lock::Mutex;
 use monoio::time::sleep;
 use sdk::error::SystemError;
@@ -12,7 +12,7 @@ pub struct Node {
     pub id: NodeId,
     pub name: String,
     pub address: String,
-    term: Mutex<TermId>,
+    term: Mutex<Term>,
     leader_id: Mutex<Option<NodeId>>,
     heartbeat: NodeHeartbeat,
     client: NodeClient,
@@ -53,7 +53,7 @@ impl Node {
         })
     }
 
-    pub async fn set_leader(&self, term: TermId, leader_id: NodeId) {
+    pub async fn set_leader(&self, term: Term, leader_id: NodeId) {
         *self.term.lock().await = term;
         *self.leader_id.lock().await = Some(leader_id);
         self.client.set_leader(term, leader_id).await;

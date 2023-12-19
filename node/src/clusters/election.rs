@@ -1,4 +1,4 @@
-use crate::types::{CandidateId, NodeId, TermId};
+use crate::types::{CandidateId, NodeId, Term};
 use futures::lock::Mutex;
 use monoio::time::sleep;
 use rand::rngs::ThreadRng;
@@ -12,7 +12,7 @@ use tracing::{info, warn};
 #[derive(Debug)]
 pub(crate) struct Election {
     pub is_completed: Mutex<bool>,
-    pub term: Mutex<TermId>,
+    pub term: Mutex<Term>,
     pub leader_id: Mutex<Option<NodeId>>,
     pub votes_count: Mutex<HashMap<CandidateId, HashSet<NodeId>>>,
     pub voted_for: Mutex<Option<CandidateId>>,
@@ -40,7 +40,7 @@ impl Default for Election {
 #[derive(Debug)]
 pub struct ElectionManager {
     self_id: CandidateId,
-    current_term: Mutex<TermId>,
+    current_term: Mutex<Term>,
     current_leader_id: Mutex<Option<CandidateId>>,
     election: Election,
     randomizer: Mutex<ThreadRng>,
@@ -77,7 +77,7 @@ impl ElectionManager {
         *self.current_leader_id.lock().await
     }
 
-    pub async fn set_term(&self, term: TermId) {
+    pub async fn set_term(&self, term: Term) {
         let current_term = *self.current_term.lock().await;
         if term > current_term {
             info!("Setting term: {term}...");
@@ -89,11 +89,7 @@ impl ElectionManager {
         self.nodes_count / 2 + 1
     }
 
-    pub async fn set_leader(
-        &self,
-        term: TermId,
-        leader_id: CandidateId,
-    ) -> Result<(), SystemError> {
+    pub async fn set_leader(&self, term: Term, leader_id: CandidateId) -> Result<(), SystemError> {
         let current_term = *self.current_term.lock().await;
         if current_term == term {
             if let Some(current_leader_id) = self.get_leader_id().await {
@@ -122,16 +118,16 @@ impl ElectionManager {
         Ok(())
     }
 
-    pub async fn get_current_term(&self) -> TermId {
+    pub async fn get_current_term(&self) -> Term {
         *self.current_term.lock().await
     }
 
-    pub async fn next_term(&self) -> TermId {
+    pub async fn next_term(&self) -> Term {
         let current_term = self.get_current_term().await;
         current_term + 1
     }
 
-    pub async fn start_election(&self, term: TermId) -> ElectionState {
+    pub async fn start_election(&self, term: Term) -> ElectionState {
         self.remove_leader().await;
         self.set_election_completed_state(false).await;
         *self.election.term.lock().await = term;
@@ -167,39 +163,39 @@ impl ElectionManager {
 
     pub async fn vote(
         &self,
-        term_id: TermId,
+        term: Term,
         candidate_id: CandidateId,
         node_id: NodeId,
     ) -> Result<(), SystemError> {
         let current_term = *self.current_term.lock().await;
-        if term_id < current_term {
+        if term < current_term {
             warn!(
-                "Trying to vote in term: {term_id}, candidate ID: {candidate_id} from node ID: {node_id}, but current term is: {current_term}.",
+                "Trying to vote in term: {term}, candidate ID: {candidate_id} from node ID: {node_id}, but current term is: {current_term}.",
             );
             return Err(SystemError::InvalidTerm(current_term));
         }
 
-        if current_term == term_id {
+        if current_term == term {
             if self.is_election_completed().await {
-                warn!("Election is over, ignoring vote request in term: {term_id}, candidate ID: {candidate_id} from node ID: {node_id}.");
+                warn!("Election is over, ignoring vote request in term: {term}, candidate ID: {candidate_id} from node ID: {node_id}.");
                 return Err(SystemError::ElectionsOver);
             }
 
             if self.get_leader_id().await.is_some() {
-                warn!("Leader already elected, ignoring vote request in term: {term_id}, candidate ID: {candidate_id} from node ID: {node_id}.");
+                warn!("Leader already elected, ignoring vote request in term: {term}, candidate ID: {candidate_id} from node ID: {node_id}.");
                 return Err(SystemError::LeaderAlreadyElected);
             }
         }
 
         info!(
-            "Voting in term: {term_id}, current term: {current_term} for candidate ID: {candidate_id} from node ID: {node_id}.",
+            "Voting in term: {term}, current term: {current_term} for candidate ID: {candidate_id} from node ID: {node_id}.",
         );
 
-        if current_term < term_id {
-            info!("Updating current term to: {term_id} and resetting previous votes...");
+        if current_term < term {
+            info!("Updating current term to: {term} and resetting previous votes...");
             self.current_leader_id.lock().await.take();
-            *self.current_term.lock().await = term_id;
-            *self.election.term.lock().await = term_id;
+            *self.current_term.lock().await = term;
+            *self.election.term.lock().await = term;
             self.election.voted_for.lock().await.take();
             self.election.votes_count.lock().await.clear();
         }
@@ -209,9 +205,11 @@ impl ElectionManager {
             let already_voted = votes_count.values().any(|votes| votes.contains(&node_id));
             if already_voted {
                 if self.self_id == node_id {
-                    warn!("You have already voted in term: {term_id} for candidate ID: {candidate_id}.");
+                    warn!(
+                        "You have already voted in term: {term} for candidate ID: {candidate_id}."
+                    );
                 } else {
-                    warn!("Node ID: {node_id} has already voted in term: {term_id} for candidate ID: {candidate_id}.");
+                    warn!("Node ID: {node_id} has already voted in term: {term} for candidate ID: {candidate_id}.");
                 }
                 return Err(SystemError::AlreadyVoted);
             }
@@ -220,17 +218,17 @@ impl ElectionManager {
                 let mut votes = HashSet::new();
                 votes.insert(node_id);
                 entry.insert(votes);
-                info!("Initial vote for candidate ID: {candidate_id} from node ID: {node_id} in term: {term_id}.");
+                info!("Initial vote for candidate ID: {candidate_id} from node ID: {node_id} in term: {term}.");
             } else {
                 votes_count.get_mut(&candidate_id).unwrap().insert(node_id);
-                info!("Additional vote for candidate ID: {candidate_id} from node ID: {node_id} in term: {term_id}.");
+                info!("Additional vote for candidate ID: {candidate_id} from node ID: {node_id} in term: {term}.");
             }
         }
 
         let mut voted_for = self.election.voted_for.lock().await;
         if self.self_id == node_id && voted_for.is_none() {
             voted_for.replace(candidate_id);
-            info!("You have voted for node ID: {candidate_id} in term: {term_id}.")
+            info!("You have voted for node ID: {candidate_id} in term: {term}.")
         }
 
         self.count_votes().await;
@@ -238,25 +236,25 @@ impl ElectionManager {
     }
 
     async fn count_votes(&self) -> ElectionState {
-        let term_id = *self.current_term.lock().await;
+        let term = *self.current_term.lock().await;
         let leader_id = *self.current_leader_id.lock().await;
         if let Some(leader_id) = leader_id {
             self.set_election_completed_state(true).await;
-            warn!("Leader already elected in term: {term_id} with ID: {leader_id}.");
+            warn!("Leader already elected in term: {term} with ID: {leader_id}.");
             return ElectionState::LeaderElected(leader_id);
         }
 
-        info!("Counting votes in term: {term_id}...");
+        info!("Counting votes in term: {term}...");
         let votes_count = self.election.votes_count.lock().await;
         let leader_votes = votes_count.iter().max_by_key(|(_, votes)| votes.len());
         if leader_votes.is_none() {
-            info!("No leader elected in term: {term_id}.");
+            info!("No leader elected in term: {term}.");
             return ElectionState::NoLeaderElected;
         }
 
         let (leader, votes) = leader_votes.unwrap();
         info!(
-            "Most votes: {} in term: {term_id}, for node ID: {leader}",
+            "Most votes: {} in term: {term}, for node ID: {leader}",
             votes.len()
         );
         if votes.len() as u64 > self.get_required_votes_count() {
@@ -264,7 +262,7 @@ impl ElectionManager {
             let leader = *leader;
             self.current_leader_id.lock().await.replace(leader);
             self.election.leader_id.lock().await.replace(leader);
-            info!("Election in term: {term_id} has completed, leader ID: {leader}.");
+            info!("Election in term: {term} has completed, leader ID: {leader}.");
             return ElectionState::LeaderElected(leader);
         }
 
@@ -276,8 +274,8 @@ impl ElectionManager {
         self.current_leader_id.lock().await.take();
     }
 
-    pub async fn has_majority_votes(&self, term_id: TermId, candidate_id: CandidateId) -> bool {
-        if *self.current_term.lock().await != term_id {
+    pub async fn has_majority_votes(&self, term: Term, candidate_id: CandidateId) -> bool {
+        if *self.current_term.lock().await != term {
             return false;
         }
 

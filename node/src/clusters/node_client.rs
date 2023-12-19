@@ -1,7 +1,7 @@
 use crate::clusters::cluster::SelfNode;
 use crate::clusters::node::Resiliency;
 use crate::connection::handler::ConnectionHandler;
-use crate::types::{NodeId, TermId};
+use crate::types::{NodeId, Term};
 use futures::lock::Mutex;
 use monoio::net::TcpStream;
 use monoio::time::sleep;
@@ -48,7 +48,7 @@ pub struct NodeClient {
     client_state: Mutex<ClientState>,
     health_state: Mutex<HealthState>,
     resiliency: Resiliency,
-    term: Mutex<TermId>,
+    term: Mutex<Term>,
     leader_id: Mutex<Option<NodeId>>,
 }
 
@@ -86,7 +86,7 @@ impl NodeClient {
         self.id == self.self_node.id
     }
 
-    pub async fn set_leader(&self, term: TermId, leader_id: NodeId) {
+    pub async fn set_leader(&self, term: Term, leader_id: NodeId) {
         *self.term.lock().await = term;
         *self.leader_id.lock().await = Some(leader_id);
     }
@@ -104,6 +104,10 @@ impl NodeClient {
         let remote_address;
         let elapsed;
         loop {
+            if self.get_client_state().await == ClientState::Connected {
+                return Ok(());
+            }
+
             info!(
                 "Connecting to cluster node ID: {}, address: {}...",
                 self.id, self.address

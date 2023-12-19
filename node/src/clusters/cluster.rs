@@ -316,13 +316,12 @@ impl Cluster {
     }
 
     pub async fn is_connected_to(&self, node_id: u64) -> bool {
-        for cluster_node in self.nodes.values() {
-            if cluster_node.node.id == node_id {
-                return cluster_node.node.is_connected().await;
-            }
+        let node = self.nodes.get(&node_id);
+        if node.is_none() {
+            return false;
         }
 
-        false
+        node.unwrap().node.is_connected().await
     }
 
     pub fn validate_secret(&self, secret: &str) -> bool {
