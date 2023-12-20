@@ -1,4 +1,5 @@
 use crate::clusters::cluster::{Cluster, SelfNode};
+use crate::clusters::heartbeats;
 use crate::configs::config_provider::FileConfigProvider;
 use crate::server::{public_server, sync_server};
 use crate::streaming::streamer::Streamer;
@@ -41,6 +42,7 @@ async fn main() -> Result<(), SystemError> {
     public_server::start(&system_config.server.address, cluster.clone());
     cluster.connect().await?;
     cluster.start_election().await?;
+    heartbeats::subscribe(cluster.clone());
     info!("Press CTRL+C shutdown Iggy node...");
     CtrlC::new().unwrap().await;
     cluster.disconnect().await?;

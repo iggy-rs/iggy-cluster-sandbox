@@ -1,7 +1,9 @@
 use crate::clusters::cluster::{Cluster, ClusterNodeState};
 use crate::clusters::election::ElectionState;
 use crate::types::{CandidateId, NodeId, Term};
+use monoio::time::sleep;
 use sdk::error::SystemError;
+use std::time::Duration;
 use tracing::{error, info, warn};
 
 impl Cluster {
@@ -11,9 +13,17 @@ impl Cluster {
             return Err(SystemError::UnhealthyCluster);
         }
 
+        let unhealthy_interval = Duration::from_millis(1000);
         let self_node = self_node.unwrap();
         loop {
+            if self.verify_is_healthy().await.is_err() {
+                error!("Cluster is unhealthy.");
+                sleep(unhealthy_interval).await;
+                continue;
+            }
+
             if let Some(leader) = self.election_manager.get_leader_id().await {
+                self_node.set_state(ClusterNodeState::Follower).await;
                 info!("Leader ID: {leader} was already elected. Skipping election.");
                 break;
             }
@@ -25,6 +35,7 @@ impl Cluster {
             match election_state {
                 ElectionState::TermChanged(new_term) => {
                     if let Some(leader) = self.election_manager.get_leader_id().await {
+                        self_node.set_state(ClusterNodeState::Follower).await;
                         info!("Leader ID: {leader} was already elected in new term: {new_term}.");
                         break;
                     }
@@ -67,6 +78,7 @@ impl Cluster {
                     }
 
                     info!("Election in term: {term} has completed, this node is a leader with ID: {}.", self_node.node.id);
+                    self_node.set_state(ClusterNodeState::Leader).await;
                     self.start_heartbeat()?;
                     break;
                 }
@@ -76,15 +88,18 @@ impl Cluster {
         Ok(())
     }
 
-    pub async fn set_leader(&self, term: Term, leader_id: NodeId) -> Result<(), SystemError> {
+    pub async fn set_leader(&self, term: Term, leader_id: NodeId) {
         if self
             .election_manager
             .set_leader(term, leader_id)
             .await
             .is_err()
         {
-            warn!("Setting leader failed.");
-            return Ok(());
+            warn!(
+                "Failed to set the leader ID: {} for term: {}.",
+                leader_id, term
+            );
+            return;
         }
 
         for node in self.nodes.values() {
@@ -94,8 +109,6 @@ impl Cluster {
 
             node.node.set_leader(term, leader_id).await;
         }
-
-        Ok(())
     }
 
     pub async fn update_leader(&self, term: Term) -> Result<(), SystemError> {

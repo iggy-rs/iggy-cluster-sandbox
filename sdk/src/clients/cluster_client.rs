@@ -4,6 +4,7 @@ use crate::commands::append_messages::{AppendMessages, AppendableMessage};
 use crate::commands::command::Command;
 use crate::commands::create_stream::CreateStream;
 use crate::commands::get_metadata::GetMetadata;
+use crate::commands::ping::Ping;
 use crate::commands::poll_messages::PollMessages;
 use crate::error::SystemError;
 use crate::models::message::Message;
@@ -124,6 +125,13 @@ impl ClusterClient {
             messages.push(message);
         }
         Ok(messages)
+    }
+
+    pub async fn ping(&self) -> Result<(), SystemError> {
+        let command = Ping::new_command();
+        let address = self.get_first_node_address()?;
+        self.send(&command, &address).await?;
+        Ok(())
     }
 
     pub async fn create_stream(&self, stream_id: u64) -> Result<(), SystemError> {

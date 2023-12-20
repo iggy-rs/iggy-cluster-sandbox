@@ -5,6 +5,10 @@ use tracing::info;
 
 pub(crate) async fn handle(command: Command, client: &ClusterClient) -> Result<(), SystemError> {
     match command {
+        Command::Ping(_) => {
+            client.ping().await?;
+            info!("Pinged the cluster");
+        }
         Command::PollMessages(poll_messages) => {
             let messages = client
                 .poll_messages(

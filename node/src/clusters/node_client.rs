@@ -5,8 +5,8 @@ use crate::types::{NodeId, Term};
 use futures::lock::Mutex;
 use monoio::net::TcpStream;
 use monoio::time::sleep;
+use sdk::commands::heartbeat::Heartbeat;
 use sdk::commands::hello::Hello;
-use sdk::commands::ping::Ping;
 use sdk::commands::request_vote::RequestVote;
 use sdk::commands::update_leader::UpdateLeader;
 use sdk::error::SystemError;
@@ -188,21 +188,24 @@ impl NodeClient {
         self.set_health_state(HealthState::Unknown).await;
         self.handler.lock().await.take();
         info!(
-            "Disconnected from  cluster node ID: {}, address: {}.",
+            "Disconnected from cluster node ID: {}, address: {}.",
             self.id, self.address
         );
         Ok(())
     }
 
-    pub async fn ping(&self, term: u64, leader_id: Option<u64>) -> Result<(), SystemError> {
+    pub async fn heartbeat(&self, term: u64, leader_id: Option<u64>) -> Result<(), SystemError> {
         debug!(
-            "Sending a ping to cluster node ID: {}, address: {}...",
+            "Sending a heartbeat to cluster node ID: {}, address: {}...",
             self.id, self.address
         );
         let now = Instant::now();
-        if let Err(error) = self.send_request(&Ping::new_command(term, leader_id)).await {
+        if let Err(error) = self
+            .send_request(&Heartbeat::new_command(term, leader_id))
+            .await
+        {
             error!(
-                "Failed to send a ping to cluster node ID: {}, address: {}",
+                "Failed to send a heartbeat to cluster node ID: {}, address: {}",
                 self.id, self.address
             );
             self.set_health_state(HealthState::Unhealthy).await;
@@ -211,7 +214,7 @@ impl NodeClient {
         }
         let elapsed = now.elapsed();
         debug!(
-            "Received a pong from cluster node ID: {}, address: {} in {} ms.",
+            "Received a heartbeat from cluster node ID: {}, address: {} in {} ms.",
             self.id,
             self.address,
             elapsed.as_millis()
@@ -264,7 +267,7 @@ impl NodeClient {
         *self.client_state.lock().await
     }
 
-    async fn set_client_state(&self, state: ClientState) {
+    pub async fn set_client_state(&self, state: ClientState) {
         *self.client_state.lock().await = state;
     }
 

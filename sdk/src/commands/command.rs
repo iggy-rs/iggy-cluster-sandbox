@@ -2,6 +2,7 @@ use crate::bytes_serializable::BytesSerializable;
 use crate::commands::append_messages::AppendMessages;
 use crate::commands::create_stream::CreateStream;
 use crate::commands::get_metadata::GetMetadata;
+use crate::commands::heartbeat::Heartbeat;
 use crate::commands::hello::Hello;
 use crate::commands::ping::Ping;
 use crate::commands::poll_messages::PollMessages;
@@ -13,18 +14,20 @@ use bytes::BufMut;
 use std::fmt::{Display, Formatter};
 
 const HELLO_CODE: u32 = 1;
-const PING_CODE: u32 = 2;
-const REQUEST_VOTE_CODE: u32 = 3;
-const UPDATE_LEADER_CODE: u32 = 4;
-const GET_METADATA_CODE: u32 = 5;
-const SYNC_MESSAGES_CODE: u32 = 10;
-const CREATE_STREAM_CODE: u32 = 20;
-const APPEND_MESSAGES_CODE: u32 = 30;
-const POLL_MESSAGES_CODE: u32 = 40;
+const HEARTBEAT_CODE: u32 = 2;
+const PING_CODE: u32 = 3;
+const GET_METADATA_CODE: u32 = 4;
+const REQUEST_VOTE_CODE: u32 = 10;
+const UPDATE_LEADER_CODE: u32 = 11;
+const SYNC_MESSAGES_CODE: u32 = 20;
+const CREATE_STREAM_CODE: u32 = 30;
+const APPEND_MESSAGES_CODE: u32 = 40;
+const POLL_MESSAGES_CODE: u32 = 50;
 
 #[derive(Debug)]
 pub enum Command {
     Hello(Hello),
+    Heartbeat(Heartbeat),
     Ping(Ping),
     RequestVote(RequestVote),
     UpdateLeader(UpdateLeader),
@@ -39,6 +42,7 @@ impl Command {
     pub fn get_name(&self) -> &str {
         match self {
             Command::Hello(_) => "hello",
+            Command::Heartbeat(_) => "heartbeat",
             Command::Ping(_) => "ping",
             Command::RequestVote(_) => "request_vote",
             Command::UpdateLeader(_) => "update_leader",
@@ -53,6 +57,7 @@ impl Command {
     pub fn as_bytes(&self) -> Vec<u8> {
         match self {
             Command::Hello(command) => to_bytes(HELLO_CODE, command),
+            Command::Heartbeat(command) => to_bytes(HEARTBEAT_CODE, command),
             Command::Ping(command) => to_bytes(PING_CODE, command),
             Command::RequestVote(command) => to_bytes(REQUEST_VOTE_CODE, command),
             Command::UpdateLeader(command) => to_bytes(UPDATE_LEADER_CODE, command),
@@ -70,6 +75,7 @@ impl Command {
     {
         match code {
             HELLO_CODE => Ok(Command::Hello(Hello::from_bytes(bytes)?)),
+            HEARTBEAT_CODE => Ok(Command::Heartbeat(Heartbeat::from_bytes(bytes)?)),
             PING_CODE => Ok(Command::Ping(Ping::from_bytes(bytes)?)),
             REQUEST_VOTE_CODE => Ok(Command::RequestVote(RequestVote::from_bytes(bytes)?)),
             UPDATE_LEADER_CODE => Ok(Command::UpdateLeader(UpdateLeader::from_bytes(bytes)?)),
@@ -96,6 +102,7 @@ impl Display for Command {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Command::Hello(hello) => write!(f, "Hello from: {}", hello.name),
+            Command::Heartbeat(_) => write!(f, "Heartbeat"),
             Command::Ping(_) => write!(f, "Ping"),
             Command::RequestVote(request_vote) => {
                 write!(f, "Request vote: {}", request_vote.term)

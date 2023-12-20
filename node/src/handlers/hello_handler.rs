@@ -31,12 +31,7 @@ pub(crate) async fn handle(
 
     cluster.election_manager.set_term(command.term).await;
     if let Some(leader_id) = command.leader_id {
-        if cluster.set_leader(command.term, leader_id).await.is_err() {
-            warn!(
-                "Failed to set the leader ID: {} for term: {}.",
-                leader_id, command.term
-            );
-        }
+        cluster.set_leader(command.term, leader_id).await;
     }
 
     if cluster.is_connected_to(command.node_id).await {

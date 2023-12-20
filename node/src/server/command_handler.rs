@@ -18,8 +18,11 @@ pub async fn handle(
         Command::Hello(command) => {
             hello_handler::handle(handler, command, cluster).await?;
         }
-        Command::Ping(command) => {
-            ping_handler::handle(handler, command, cluster).await?;
+        Command::Heartbeat(command) => {
+            heartbeat_handler::handle(handler, command, cluster).await?;
+        }
+        Command::Ping(_) => {
+            ping_handler::handle(handler, cluster).await?;
         }
         Command::RequestVote(command) => {
             request_vote_handler::handle(handler, command, cluster).await?;

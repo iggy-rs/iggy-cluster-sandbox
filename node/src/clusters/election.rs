@@ -16,6 +16,7 @@ pub(crate) struct Election {
     pub leader_id: Mutex<Option<NodeId>>,
     pub votes_count: Mutex<HashMap<CandidateId, HashSet<NodeId>>>,
     pub voted_for: Mutex<Option<CandidateId>>,
+    pub last_heartbeat_at: Mutex<u64>,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -33,6 +34,7 @@ impl Default for Election {
             leader_id: Mutex::new(None),
             votes_count: Mutex::new(HashMap::new()),
             voted_for: Mutex::new(None),
+            last_heartbeat_at: Mutex::new(0),
         }
     }
 }
@@ -71,6 +73,14 @@ impl ElectionManager {
             nodes_count,
             timeout_range,
         }
+    }
+
+    pub async fn get_last_heartbeat(&self) -> u64 {
+        *self.election.last_heartbeat_at.lock().await
+    }
+
+    pub async fn set_last_heartbeat(&self, timestamp: u64) {
+        *self.election.last_heartbeat_at.lock().await = timestamp;
     }
 
     pub async fn get_leader_id(&self) -> Option<NodeId> {

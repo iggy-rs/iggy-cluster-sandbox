@@ -3,6 +3,7 @@ use sdk::commands::append_messages::{AppendMessages, AppendableMessage};
 use sdk::commands::command::Command;
 use sdk::commands::create_stream::CreateStream;
 use sdk::commands::get_metadata::GetMetadata;
+use sdk::commands::ping::Ping;
 use sdk::commands::poll_messages::PollMessages;
 
 pub(crate) fn parse(input: &str) -> Option<Command> {
@@ -10,6 +11,7 @@ pub(crate) fn parse(input: &str) -> Option<Command> {
     let command = parts[0];
     match command {
         "metadata" => Some(GetMetadata::new_command()),
+        "ping" => Some(Ping::new_command()),
         "stream" => Some(parse_create_stream(parts[1])),
         "append" => Some(parse_append_messages(parts[1])),
         "poll" => Some(parse_poll_messages(parts[1])),

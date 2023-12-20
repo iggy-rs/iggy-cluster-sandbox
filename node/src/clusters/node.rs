@@ -63,6 +63,10 @@ impl Node {
         self.client.is_self_node()
     }
 
+    pub async fn set_connected(&self) {
+        self.client.set_client_state(ClientState::Connected).await;
+    }
+
     pub async fn connect(&self) -> Result<(), SystemError> {
         if self.is_self_node() {
             return Ok(());
@@ -81,14 +85,14 @@ impl Node {
             sleep(self.heartbeat.interval).await;
             let term = *self.term.lock().await;
             let leader_id = *self.leader_id.lock().await;
-            let ping = self.client.ping(term, leader_id).await;
-            if ping.is_ok() {
+            let heartbeat = self.client.heartbeat(term, leader_id).await;
+            if heartbeat.is_ok() {
                 info!("Heartbeat passed for cluster node: {}", self.name);
                 continue;
             }
 
             error!("Heartbeat failed for cluster node: {}", self.name);
-            let error = ping.unwrap_err();
+            let error = heartbeat.unwrap_err();
             match error {
                 SystemError::SendRequestFailed => {
                     error!("Failed to send a request to cluster node: {}", self.name);
