@@ -161,11 +161,9 @@ impl Cluster {
     }
 
     async fn init_node_connection(cluster_node: Rc<ClusterNode>) -> Result<(), SystemError> {
-        if let Err(error) = Self::connect_to_node(&cluster_node).await {
-            error!(
-                "Failed to connect to cluster node: {}, error: {}",
-                cluster_node.node.name, error
-            );
+        let name = cluster_node.node.name.clone();
+        if let Err(error) = Self::connect_to_node(cluster_node).await {
+            error!("Failed to connect to cluster node: {name}, error: {error}",);
             return Err(error);
         }
 
@@ -178,7 +176,7 @@ impl Cluster {
             return Err(SystemError::InvalidNode(node_id));
         }
 
-        Self::connect_to_node(cluster_node.unwrap()).await
+        Self::connect_to_node(cluster_node.unwrap().clone()).await
     }
 
     pub fn get_self_node(&self) -> Option<Rc<ClusterNode>> {
@@ -217,7 +215,7 @@ impl Cluster {
         info!("Handled disconnected node ID: {node_id}.");
     }
 
-    async fn connect_to_node(cluster_node: &ClusterNode) -> Result<(), SystemError> {
+    async fn connect_to_node(cluster_node: Rc<ClusterNode>) -> Result<(), SystemError> {
         info!(
             "Connecting to cluster node: {}, ID: {}...",
             cluster_node.node.name, cluster_node.node.id
@@ -237,48 +235,14 @@ impl Cluster {
             "Connected to cluster node: {}, ID: {}",
             cluster_node.node.name, cluster_node.node.id
         );
+        Self::start_heartbeat_for_node(cluster_node)?;
         Ok(())
-    }
-
-    pub fn start_heartbeat(&self) -> Result<(), SystemError> {
-        info!(
-            "Starting heartbeat for all cluster nodes {}...",
-            self.nodes.len()
-        );
-        for cluster_node in self.nodes.values() {
-            if cluster_node.node.is_self_node() {
-                continue;
-            }
-
-            let node_name = cluster_node.node.name.clone();
-            let cluster_node = cluster_node.clone();
-            Self::start_heartbeat_for_node(cluster_node).unwrap_or_else(|error| {
-                error!(
-                    "Failed to start heartbeat for cluster node: {node_name}, error: {}",
-                    error
-                );
-            });
-        }
-        info!("Heartbeat for all cluster nodes started.");
-        Ok(())
-    }
-
-    // TODO: Make use of this once the missing node has recovered.
-    #[allow(dead_code)]
-    pub fn start_heartbeat_for(&self, node_id: u64) -> Result<(), SystemError> {
-        info!("Starting heartbeat for node ID: {node_id}...");
-        let cluster_node = self.nodes.get(&node_id);
-        if cluster_node.is_none() {
-            return Err(SystemError::InvalidNode(node_id));
-        }
-
-        Self::start_heartbeat_for_node(cluster_node.unwrap().clone())
     }
 
     fn start_heartbeat_for_node(cluster_node: Rc<ClusterNode>) -> Result<(), SystemError> {
         let node_id = cluster_node.node.id;
         let node_name = cluster_node.node.name.clone();
-        info!("Starting heartbeat for node: {node_name}, ID: {node_id}, ...");
+        info!("Starting heartbeat for node: {node_name}, ID: {node_id}...");
         monoio::spawn(async move {
             if cluster_node.node.start_heartbeat().await.is_err() {
                 cluster_node

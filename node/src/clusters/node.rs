@@ -91,35 +91,9 @@ impl Node {
                 continue;
             }
 
-            error!("Heartbeat failed for cluster node: {}", self.name);
             let error = heartbeat.unwrap_err();
-            match error {
-                SystemError::SendRequestFailed => {
-                    error!("Failed to send a request to cluster node: {}", self.name);
-                    self.connect().await?;
-                    continue;
-                }
-                SystemError::ClientDisconnected => {
-                    error!("Cluster node disconnected: {}", self.name);
-                    self.connect().await?;
-                    continue;
-                }
-                SystemError::InvalidResponse(status, _) => {
-                    error!(
-                        "Received invalid response with status: {status} from cluster node: {}",
-                        self.name
-                    );
-                    self.connect().await?;
-                    continue;
-                }
-                _ => {
-                    error!(
-                        "Cluster node heartbeat failed: {}. cannot recover.",
-                        self.name
-                    );
-                    return Err(error);
-                }
-            }
+            error!("Heartbeat failed for cluster node: {}, {error}", self.name);
+            return Err(error);
         }
     }
 

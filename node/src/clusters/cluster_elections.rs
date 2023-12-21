@@ -24,7 +24,8 @@ impl Cluster {
 
             if let Some(leader) = self.election_manager.get_leader_id().await {
                 self_node.set_state(ClusterNodeState::Follower).await;
-                info!("Leader ID: {leader} was already elected. Skipping election.");
+                let term = self.election_manager.get_current_term().await;
+                info!("Leader ID: {leader} was already elected in term {term}. Skipping election.");
                 break;
             }
 
@@ -48,7 +49,6 @@ impl Cluster {
                     if leader_id == self_node.node.id {
                         self_node.set_state(ClusterNodeState::Leader).await;
                         info!("Your role is leader, term: {term}.");
-                        self.start_heartbeat()?;
                     } else {
                         self_node.set_state(ClusterNodeState::Follower).await;
                         info!("Your role is follower, term: {term}.");
@@ -79,7 +79,6 @@ impl Cluster {
 
                     info!("Election in term: {term} has completed, this node is a leader with ID: {}.", self_node.node.id);
                     self_node.set_state(ClusterNodeState::Leader).await;
-                    self.start_heartbeat()?;
                     break;
                 }
             }
