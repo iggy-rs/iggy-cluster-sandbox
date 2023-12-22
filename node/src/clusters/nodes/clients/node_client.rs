@@ -1,5 +1,5 @@
 use crate::clusters::cluster::SelfNode;
-use crate::clusters::node::Resiliency;
+use crate::clusters::nodes::node::Resiliency;
 use crate::connection::handler::ConnectionHandler;
 use crate::types::{NodeId, Term};
 use futures::lock::Mutex;
@@ -10,23 +10,9 @@ use sdk::commands::hello::Hello;
 use sdk::commands::request_vote::RequestVote;
 use sdk::commands::update_leader::UpdateLeader;
 use sdk::error::SystemError;
-use std::fmt::{Display, Formatter};
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum ClientState {
-    Disconnected,
-    Connected,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum HealthState {
-    Unknown,
-    Healthy,
-    Unhealthy,
-}
 
 impl SelfNode {
     pub fn new(id: u64, name: &str, address: &str) -> Self {
@@ -45,8 +31,7 @@ pub struct NodeClient {
     pub self_node: SelfNode,
     pub address: SocketAddr,
     pub handler: Mutex<Option<ConnectionHandler>>,
-    client_state: Mutex<ClientState>,
-    health_state: Mutex<HealthState>,
+    connected: Mutex<bool>,
     resiliency: Resiliency,
     term: Mutex<Term>,
     leader_id: Mutex<Option<NodeId>>,
@@ -74,8 +59,7 @@ impl NodeClient {
             self_node,
             address: address.unwrap(),
             handler: Mutex::new(None),
-            client_state: Mutex::new(ClientState::Disconnected),
-            health_state: Mutex::new(HealthState::Unknown),
+            connected: Mutex::new(false),
             resiliency,
             term: Mutex::new(0),
             leader_id: Mutex::new(None),
@@ -92,7 +76,7 @@ impl NodeClient {
     }
 
     pub async fn connect(&self) -> Result<(), SystemError> {
-        if self.get_client_state().await == ClientState::Connected {
+        if self.is_connected().await {
             warn!(
                 "Already connected to cluster node ID: {}, address: {}",
                 self.id, self.address
@@ -104,7 +88,7 @@ impl NodeClient {
         let remote_address;
         let elapsed;
         loop {
-            if self.get_client_state().await == ClientState::Connected {
+            if self.is_connected().await {
                 return Ok(());
             }
 
@@ -146,8 +130,7 @@ impl NodeClient {
                 remote_address,
                 self.id,
             ));
-            self.set_client_state(ClientState::Connected).await;
-            self.set_health_state(HealthState::Healthy).await;
+            self.set_connected().await;
             break;
         }
 
@@ -175,17 +158,15 @@ impl NodeClient {
     }
 
     pub async fn disconnect(&self) -> Result<(), SystemError> {
-        if self.get_client_state().await == ClientState::Disconnected {
+        if !self.is_connected().await {
             return Ok(());
         }
 
-        let health_state = self.get_health_state().await;
         info!(
-            "Disconnecting from cluster node ID: {}, address: {}, health state: {health_state}...",
+            "Disconnecting from cluster node ID: {}, address: {}...",
             self.id, self.address
         );
-        self.set_client_state(ClientState::Disconnected).await;
-        self.set_health_state(HealthState::Unknown).await;
+        self.set_disconnected().await;
         self.handler.lock().await.take();
         info!(
             "Disconnected from cluster node ID: {}, address: {}.",
@@ -208,8 +189,7 @@ impl NodeClient {
                 "Failed to send a heartbeat to cluster node ID: {}, address: {}",
                 self.id, self.address
             );
-            self.set_health_state(HealthState::Unhealthy).await;
-            self.set_client_state(ClientState::Disconnected).await;
+            self.set_disconnected().await;
             return Err(error);
         }
         let elapsed = now.elapsed();
@@ -263,38 +243,15 @@ impl NodeClient {
         Ok(())
     }
 
-    pub async fn get_client_state(&self) -> ClientState {
-        *self.client_state.lock().await
+    pub async fn is_connected(&self) -> bool {
+        *self.connected.lock().await
     }
 
-    pub async fn set_client_state(&self, state: ClientState) {
-        *self.client_state.lock().await = state;
+    pub async fn set_connected(&self) {
+        *self.connected.lock().await = true;
     }
 
-    pub async fn get_health_state(&self) -> HealthState {
-        *self.health_state.lock().await
-    }
-
-    async fn set_health_state(&self, state: HealthState) {
-        *self.health_state.lock().await = state;
-    }
-}
-
-impl Display for ClientState {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ClientState::Disconnected => write!(f, "disconnected"),
-            ClientState::Connected => write!(f, "connected"),
-        }
-    }
-}
-
-impl Display for HealthState {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            HealthState::Unknown => write!(f, "unknown"),
-            HealthState::Healthy => write!(f, "healthy"),
-            HealthState::Unhealthy => write!(f, "unhealthy"),
-        }
+    pub async fn set_disconnected(&self) {
+        *self.connected.lock().await = false;
     }
 }

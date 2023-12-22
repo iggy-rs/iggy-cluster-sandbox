@@ -1,12 +1,11 @@
-use crate::clusters::node_client::{ClientState, NodeClient};
+use crate::clusters::nodes::clients::node_client::NodeClient;
 use sdk::commands::command::Command;
 use sdk::error::SystemError;
 use tracing::{debug, warn};
 
 impl NodeClient {
     pub async fn send_request(&self, command: &Command) -> Result<(), SystemError> {
-        let state = self.get_client_state().await;
-        if state == ClientState::Disconnected {
+        if !self.is_connected().await {
             warn!("Cannot send a request, client is disconnected.");
             return Err(SystemError::ClientDisconnected);
         }

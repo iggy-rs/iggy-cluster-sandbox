@@ -1,7 +1,4 @@
-mod clients;
 pub mod cluster;
-mod cluster_elections;
-mod election;
+mod elections;
 pub mod heartbeats;
-mod node;
-mod node_client;
+mod nodes;

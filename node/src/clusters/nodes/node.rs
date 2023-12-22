@@ -1,5 +1,5 @@
 use crate::clusters::cluster::SelfNode;
-use crate::clusters::node_client::{ClientState, NodeClient};
+use crate::clusters::nodes::clients::node_client::NodeClient;
 use crate::types::{NodeId, Term};
 use futures::lock::Mutex;
 use monoio::time::sleep;
@@ -64,7 +64,7 @@ impl Node {
     }
 
     pub async fn set_connected(&self) {
-        self.client.set_client_state(ClientState::Connected).await;
+        self.client.set_connected().await;
     }
 
     pub async fn connect(&self) -> Result<(), SystemError> {
@@ -126,6 +126,6 @@ impl Node {
             return true;
         }
 
-        self.client.get_client_state().await == ClientState::Connected
+        self.client.is_connected().await
     }
 }

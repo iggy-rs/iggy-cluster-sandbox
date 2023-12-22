@@ -1,5 +1,5 @@
-use crate::clusters::election::ElectionManager;
-use crate::clusters::node::{Node, Resiliency};
+use crate::clusters::elections::election::ElectionManager;
+use crate::clusters::nodes::node::{Node, Resiliency};
 use crate::configs::config::ClusterConfig;
 use crate::streaming::streamer::Streamer;
 use crate::types::NodeId;

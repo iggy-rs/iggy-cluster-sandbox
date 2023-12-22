@@ -1,5 +1,5 @@
 use crate::clusters::cluster::{Cluster, ClusterNodeState};
-use crate::clusters::election::ElectionState;
+use crate::clusters::elections::election::ElectionState;
 use crate::types::{CandidateId, NodeId, Term};
 use monoio::time::sleep;
 use sdk::error::SystemError;
