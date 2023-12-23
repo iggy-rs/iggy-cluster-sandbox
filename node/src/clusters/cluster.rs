@@ -51,6 +51,10 @@ impl ClusterNode {
     pub async fn set_state(&self, state: ClusterNodeState) {
         *self.state.lock().await = state;
     }
+
+    pub async fn is_leader(&self) -> bool {
+        *self.state.lock().await == ClusterNodeState::Leader
+    }
 }
 
 impl Display for ClusterNodeState {
@@ -295,8 +299,24 @@ impl Cluster {
         Ok(())
     }
 
+    pub async fn verify_is_leader(&self) -> Result<(), SystemError> {
+        let self_node = self.get_self_node();
+        if self_node.is_none() {
+            return Err(SystemError::UnhealthyCluster);
+        }
+
+        let self_node = self_node.unwrap();
+        if self_node.is_leader().await {
+            return Ok(());
+        }
+
+        error!("This node is not a leader.");
+        Err(SystemError::NotLeader)
+    }
+
     pub async fn get_metadata(&self) -> Metadata {
         let mut metadata = Metadata {
+            leader_id: self.election_manager.get_leader_id().await,
             nodes: HashMap::new(),
             streams: HashMap::new(),
         };

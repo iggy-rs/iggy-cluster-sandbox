@@ -10,6 +10,7 @@ pub(crate) async fn handle(
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {
     cluster.verify_is_healthy().await?;
+    cluster.verify_is_leader().await?;
     let mut streamer = cluster.streamer.lock().await;
     streamer.create_stream(command.id).await;
     handler.send_empty_ok_response().await?;

@@ -11,6 +11,7 @@ pub(crate) async fn handle(
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {
     cluster.verify_is_healthy().await?;
+    cluster.verify_is_leader().await?;
     let streamer = cluster.streamer.lock().await;
     let messages = streamer.poll_messages(command.stream_id, command.offset, command.count)?;
     let mut bytes: Vec<u8> = Vec::new();

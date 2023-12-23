@@ -6,6 +6,7 @@ use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
 pub struct Metadata {
+    pub leader_id: Option<u64>,
     pub nodes: HashMap<u64, NodeInfo>,
     pub streams: HashMap<u64, StreamInfo>,
 }
@@ -14,8 +15,8 @@ impl Display for Metadata {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Metadata {{ nodes: {:?}, streams: {:?} }}",
-            self.nodes, self.streams
+            "Metadata {{ leader_id: {:?}, nodes: {:?}, streams: {:?} }}",
+            self.leader_id, self.nodes, self.streams
         )
     }
 }
@@ -114,6 +115,11 @@ impl BytesSerializable for StreamInfo {
 impl BytesSerializable for Metadata {
     fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
+        if let Some(leader_id) = self.leader_id {
+            bytes.put_u64_le(leader_id);
+        } else {
+            bytes.put_u64_le(0);
+        }
         bytes.put_u8(self.nodes.len() as u8);
         for node in self.nodes.values() {
             bytes.extend(node.as_bytes());
@@ -129,7 +135,13 @@ impl BytesSerializable for Metadata {
     where
         Self: Sized,
     {
-        let mut offset = 0;
+        let leader_id = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
+        let leader_id = if leader_id == 0 {
+            None
+        } else {
+            Some(leader_id)
+        };
+        let mut offset = 8;
         let nodes_len = bytes[offset] as usize;
         offset += 1;
         let mut nodes = HashMap::new();
@@ -146,6 +158,10 @@ impl BytesSerializable for Metadata {
             offset += stream.get_size_bytes();
             streams.insert(stream.stream_id, stream);
         }
-        Ok(Metadata { nodes, streams })
+        Ok(Metadata {
+            leader_id,
+            nodes,
+            streams,
+        })
     }
 }

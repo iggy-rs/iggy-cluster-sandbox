@@ -26,6 +26,12 @@ impl Streamer {
         self.streams.values().collect::<Vec<&Stream>>()
     }
 
+    pub fn set_leader(&mut self, leader_id: u64) {
+        for stream in self.streams.values_mut() {
+            stream.leader_id = leader_id;
+        }
+    }
+
     pub async fn create_stream(&mut self, id: u64) {
         if self.streams.contains_key(&id) {
             warn!("Stream: {id} already exists.");

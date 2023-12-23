@@ -108,6 +108,9 @@ impl Cluster {
 
             node.node.set_leader(term, leader_id).await;
         }
+
+        let mut streamer = self.streamer.lock().await;
+        streamer.set_leader(leader_id);
     }
 
     pub async fn update_leader(&self, term: Term) -> Result<(), SystemError> {
