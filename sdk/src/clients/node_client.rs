@@ -43,6 +43,14 @@ impl NodeClient {
             return Err(SystemError::CannotReadResponse);
         }
 
+        if buffer.is_empty() {
+            error!(
+                "Received empty response from Iggy node at address: {}.",
+                self.address
+            );
+            return Err(SystemError::CannotReadResponse);
+        }
+
         let status = u32::from_le_bytes(buffer[0..4].try_into().unwrap());
         let payload_length = u32::from_le_bytes(buffer[4..8].try_into().unwrap());
         if status == 0 {

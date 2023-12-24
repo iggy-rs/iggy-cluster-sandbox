@@ -42,7 +42,8 @@ pub(crate) struct ClusterConfig {
 pub(crate) struct ClusterNodeConfig {
     pub id: u64,
     pub name: String,
-    pub address: String,
+    pub public_address: String,
+    pub internal_address: String,
 }
 
 impl Default for StreamConfig {
@@ -113,7 +114,11 @@ impl Display for ClusterConfig {
 
 impl Display for ClusterNodeConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{{ name: {}, address: {} }}", self.name, self.address)
+        write!(
+            f,
+            "{{ name: {}, address: {} }}",
+            self.name, self.internal_address
+        )
     }
 }
 

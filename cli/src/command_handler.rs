@@ -30,8 +30,7 @@ pub(crate) async fn handle(command: Command, client: &ClusterClient) -> Result<(
             info!("Appended {count} messages");
         }
         Command::GetMetadata(_) => {
-            let metadata = client.get_metadata().await?;
-            info!("Metadata: {metadata}");
+            client.update_metadata().await?;
         }
         Command::CreateStream(create_stream) => {
             client.create_stream(create_stream.id).await?;

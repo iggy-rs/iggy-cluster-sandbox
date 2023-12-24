@@ -12,6 +12,7 @@ pub struct Node {
     pub id: NodeId,
     pub name: String,
     pub address: String,
+    pub public_address: String,
     term: Mutex<Term>,
     leader_id: Mutex<Option<NodeId>>,
     heartbeat: NodeHeartbeat,
@@ -36,6 +37,7 @@ impl Node {
         secret: &str,
         name: &str,
         address: &str,
+        public_address: &str,
         self_node: SelfNode,
         resiliency: Resiliency,
     ) -> Result<Self, SystemError> {
@@ -44,6 +46,7 @@ impl Node {
             id,
             name: name.to_string(),
             address: address.to_string(),
+            public_address: public_address.to_string(),
             heartbeat: NodeHeartbeat {
                 interval: Duration::from_millis(resiliency.heartbeat_interval),
             },

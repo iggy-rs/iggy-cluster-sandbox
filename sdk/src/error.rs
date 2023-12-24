@@ -60,6 +60,8 @@ pub enum SystemError {
     LeaderAlreadyElected,
     #[error("Not a leader")]
     NotLeader,
+    #[error("Leader not elected")]
+    LeaderNotElected,
 }
 
 impl SystemError {
@@ -93,6 +95,7 @@ impl SystemError {
             SystemError::InvalidTerm(_) => 26,
             SystemError::LeaderAlreadyElected => 27,
             SystemError::NotLeader => 28,
+            SystemError::LeaderNotElected => 29,
         }
     }
 }

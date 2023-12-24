@@ -33,6 +33,7 @@ async fn main() -> Result<(), SystemError> {
             system_config.node.id,
             &system_config.node.name,
             &system_config.node.address,
+            &system_config.server.address,
         ),
         &system_config.cluster,
         streamer,

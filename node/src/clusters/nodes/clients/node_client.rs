@@ -15,11 +15,12 @@ use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
 
 impl SelfNode {
-    pub fn new(id: u64, name: &str, address: &str) -> Self {
+    pub fn new(id: u64, name: &str, internal_address: &str, public_address: &str) -> Self {
         Self {
             id,
             name: name.to_string(),
-            address: address.to_string(),
+            internal_address: internal_address.to_string(),
+            public_address: public_address.to_string(),
         }
     }
 }

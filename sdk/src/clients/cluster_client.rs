@@ -15,12 +15,12 @@ use monoio::time::sleep;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Duration;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[derive(Debug)]
 pub struct ClusterClient {
-    clients: HashMap<String, Option<Rc<Mutex<NodeClient>>>>,
-    metadata: Option<Mutex<Metadata>>,
+    clients: HashMap<String, Rc<Mutex<Option<NodeClient>>>>,
+    metadata: Mutex<Option<Metadata>>,
     reconnection_interval: u64,
     reconnection_retries: u32,
 }
@@ -34,10 +34,10 @@ impl ClusterClient {
         Self {
             reconnection_interval,
             reconnection_retries,
-            metadata: None,
+            metadata: Mutex::new(None),
             clients: addresses
                 .iter()
-                .map(|address| (address.to_string(), None))
+                .map(|address| (address.to_string(), Rc::new(Mutex::new(None))))
                 .collect(),
         }
     }
@@ -48,14 +48,11 @@ impl ClusterClient {
             "Connecting to Iggy cluster, nodes: {}",
             addresses.join(", ")
         );
-        if self.clients.iter().all(|(_, client)| client.is_some()) {
-            info!("Already connected to Iggy cluster.");
-            return Ok(());
-        }
 
         let mut retry_count = 0;
         let mut connected_clients = HashMap::new();
         for (address, client) in &self.clients {
+            let client = client.lock().await;
             if client.is_some() {
                 info!("Already connected to Iggy node at {address}.");
                 continue;
@@ -89,7 +86,7 @@ impl ClusterClient {
 
         for (address, client) in connected_clients {
             self.clients
-                .insert(address, Some(Rc::new(Mutex::new(client))));
+                .insert(address, Rc::new(Mutex::new(Some(client))));
         }
 
         info!("Connected to Iggy cluster, updating the metadata...");
@@ -104,7 +101,7 @@ impl ClusterClient {
         offset: u64,
         count: u64,
     ) -> Result<Vec<Message>, SystemError> {
-        let leader_address = self.get_leader_address(stream_id).await?;
+        let leader_address = self.get_leader_address().await?;
         let command = PollMessages::new_command(stream_id, offset, count);
         let bytes = self.send(&command, &leader_address).await?;
         let mut messages = Vec::new();
@@ -129,15 +126,15 @@ impl ClusterClient {
 
     pub async fn ping(&self) -> Result<(), SystemError> {
         let command = Ping::new_command();
-        let address = self.get_first_node_address()?;
+        let address = self.get_first_node_address().await?;
         self.send(&command, &address).await?;
         Ok(())
     }
 
     pub async fn create_stream(&self, stream_id: u64) -> Result<(), SystemError> {
+        let leader_address = self.get_leader_address().await?;
         let command = CreateStream::new_command(stream_id);
-        let address = self.get_first_node_address()?;
-        self.send(&command, &address).await?;
+        self.send(&command, &leader_address).await?;
         Ok(())
     }
 
@@ -146,44 +143,45 @@ impl ClusterClient {
         stream_id: u64,
         messages: Vec<AppendableMessage>,
     ) -> Result<(), SystemError> {
-        let leader_address = self.get_leader_address(stream_id).await?;
+        let leader_address = self.get_leader_address().await?;
         let command = AppendMessages::new_command(stream_id, messages);
         self.send(&command, &leader_address).await?;
         Ok(())
     }
 
-    pub async fn get_metadata(&self) -> Result<Metadata, SystemError> {
-        let address = self.get_first_node_address()?;
+    pub async fn update_metadata(&self) -> Result<(), SystemError> {
+        let address = self.get_first_node_address().await?;
         let command = GetMetadata::new_command();
         let bytes = self.send(&command, &address).await?;
         let metadata = Metadata::from_bytes(&bytes)?;
-        Ok(metadata)
-    }
-
-    async fn update_metadata(&mut self) -> Result<(), SystemError> {
-        let metadata = self.get_metadata().await?;
-        self.metadata = Some(Mutex::new(metadata));
+        info!("Updated the metadata: {metadata}");
+        self.metadata.lock().await.replace(metadata);
         Ok(())
     }
 
-    fn get_first_node_address(&self) -> Result<String, SystemError> {
-        let client = self.clients.iter().find(|(_, client)| client.is_some());
-        if client.is_none() {
+    async fn get_first_node_address(&self) -> Result<String, SystemError> {
+        for (address, client) in &self.clients {
+            let client = client.lock().await;
+            if client.is_some() {
+                return Ok(address.to_string());
+            }
+        }
+
+        Err(SystemError::UnhealthyCluster)
+    }
+
+    async fn get_leader_address(&self) -> Result<String, SystemError> {
+        let metadata = self.metadata.lock().await;
+        if metadata.is_none() {
             return Err(SystemError::UnhealthyCluster);
         }
 
-        let (address, _) = client.unwrap();
-        Ok(address.to_string())
-    }
-
-    async fn get_leader_address(&self, stream_id: u64) -> Result<String, SystemError> {
-        let metadata = self.metadata.as_ref().unwrap().lock().await;
-        let stream = metadata.streams.get(&stream_id);
-        if stream.is_none() {
-            return Err(SystemError::InvalidStreamId);
+        let metadata = metadata.as_ref().unwrap();
+        if metadata.leader_id.is_none() {
+            return Err(SystemError::LeaderNotElected);
         }
 
-        let leader_id = stream.unwrap().leader_id;
+        let leader_id = metadata.leader_id.unwrap();
         let node = metadata.nodes.get(&leader_id);
         if node.is_none() {
             return Err(SystemError::InvalidNode(leader_id));
@@ -192,6 +190,7 @@ impl ClusterClient {
         let node = node.unwrap();
         let address = &node.address;
         if !self.clients.contains_key(address) {
+            error!("Leader not found for address: {address}");
             return Err(SystemError::InvalidClusterNodeAddress(address.to_string()));
         }
 
@@ -199,22 +198,20 @@ impl ClusterClient {
     }
 
     async fn send(&self, command: &Command, address: &str) -> Result<Vec<u8>, SystemError> {
-        if self.clients.iter().all(|(_, client)| client.is_none()) {
-            return Err(SystemError::UnhealthyCluster);
-        }
-
         let client = self.clients.get(address);
         if client.is_none() {
+            warn!("No client for address: {address}");
             return Err(SystemError::InvalidClusterNodeAddress(address.to_string()));
         }
 
-        let client = client.unwrap();
+        let mut client = client.unwrap().lock().await;
         if client.is_none() {
-            return Err(SystemError::CannotConnectToClusterNode(address.to_string()));
+            info!("Connecting to Iggy node at address: {address}...");
+            let node_client = NodeClient::init(address).await?;
+            client.replace(node_client);
         }
 
-        let client = client.as_ref().unwrap();
-        let mut client = client.lock().await;
+        let client = client.as_mut().unwrap();
         client.send(command).await
     }
 }

@@ -2,7 +2,7 @@
 path = "local_data/node2/streams"
 
 [server]
-address = "0.0.0.0:8102"
+address = "127.0.0.1:8102"
 
 [node]
 id = 2
@@ -21,9 +21,11 @@ election_timeout_range_to = 300
 [[cluster.nodes]]
 id = 1
 name = "node1"
-address = "0.0.0.0:8201"
+public_address = "127.0.0.1:8101"
+internal_address = "0.0.0.0:8201"
 
 [[cluster.nodes]]
 id = 3
 name = "node3"
-address = "0.0.0.0:8203"
+public_address = "127.0.0.1:8103"
+internal_address = "0.0.0.0:8203"

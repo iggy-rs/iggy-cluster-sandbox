@@ -16,7 +16,8 @@ use tracing::{error, info};
 pub struct SelfNode {
     pub id: u64,
     pub name: String,
-    pub address: String,
+    pub internal_address: String,
+    pub public_address: String,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -83,20 +84,23 @@ impl Cluster {
                     self_node.id,
                     &config.secret,
                     &self_node.name,
-                    &self_node.address,
+                    &self_node.internal_address,
+                    &self_node.public_address,
                     self_node.clone(),
                     config,
                 )?,
             }),
         );
+
         for node in &config.nodes {
             let cluster_node = ClusterNode {
-                state: Mutex::new(ClusterNodeState::Follower),
+                state: Mutex::new(ClusterNodeState::Candidate),
                 node: Self::create_node(
                     node.id,
                     &config.secret,
                     &node.name,
-                    &node.address,
+                    &node.internal_address,
+                    &node.public_address,
                     self_node.clone(),
                     config,
                 )?,
@@ -125,6 +129,7 @@ impl Cluster {
         secret: &str,
         node_name: &str,
         node_address: &str,
+        public_address: &str,
         self_node: SelfNode,
         config: &ClusterConfig,
     ) -> Result<Node, SystemError> {
@@ -133,6 +138,7 @@ impl Cluster {
             secret,
             node_name,
             node_address,
+            public_address,
             self_node,
             Resiliency {
                 heartbeat_interval: config.heartbeat_interval,
@@ -329,7 +335,7 @@ impl Cluster {
                     NodeInfo {
                         id: node.node.id,
                         name: node.node.name.clone(),
-                        address: node.node.address.clone(),
+                        address: node.node.public_address.clone(),
                     },
                 )
             })
