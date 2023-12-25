@@ -211,7 +211,21 @@ impl ClusterClient {
             client.replace(node_client);
         }
 
-        let client = client.as_mut().unwrap();
-        client.send(command).await
+        let node_client = client.as_mut().unwrap();
+        let result = node_client.send(command).await;
+        if result.is_ok() {
+            return result;
+        }
+
+        let error = result.err().unwrap();
+        if let SystemError::CannotReadResponse = error {
+            info!("Reconnecting to Iggy node at address: {address}...");
+            let node_client = NodeClient::init(address).await?;
+            client.replace(node_client);
+            let node_client = client.as_mut().unwrap();
+            return node_client.send(command).await;
+        }
+
+        Err(error)
     }
 }
