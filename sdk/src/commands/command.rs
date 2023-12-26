@@ -7,6 +7,7 @@ use crate::commands::hello::Hello;
 use crate::commands::ping::Ping;
 use crate::commands::poll_messages::PollMessages;
 use crate::commands::request_vote::RequestVote;
+use crate::commands::sync_created_stream::SyncCreatedStream;
 use crate::commands::sync_messages::SyncMessages;
 use crate::commands::update_leader::UpdateLeader;
 use crate::error::SystemError;
@@ -19,7 +20,8 @@ const PING_CODE: u32 = 3;
 const GET_METADATA_CODE: u32 = 4;
 const REQUEST_VOTE_CODE: u32 = 10;
 const UPDATE_LEADER_CODE: u32 = 11;
-const SYNC_MESSAGES_CODE: u32 = 20;
+const SYNC_CREATED_STREAM_CODE: u32 = 20;
+const SYNC_MESSAGES_CODE: u32 = 21;
 const CREATE_STREAM_CODE: u32 = 30;
 const APPEND_MESSAGES_CODE: u32 = 40;
 const POLL_MESSAGES_CODE: u32 = 50;
@@ -35,6 +37,7 @@ pub enum Command {
     CreateStream(CreateStream),
     AppendMessages(AppendMessages),
     PollMessages(PollMessages),
+    SyncCreatedStream(SyncCreatedStream),
     SyncMessages(SyncMessages),
 }
 
@@ -50,6 +53,7 @@ impl Command {
             Command::CreateStream(_) => "create_stream",
             Command::AppendMessages(_) => "append_messages",
             Command::PollMessages(_) => "poll_messages",
+            Command::SyncCreatedStream(_) => "sync_created_stream",
             Command::SyncMessages(_) => "sync_messages",
         }
     }
@@ -65,6 +69,7 @@ impl Command {
             Command::CreateStream(command) => to_bytes(CREATE_STREAM_CODE, command),
             Command::AppendMessages(command) => to_bytes(APPEND_MESSAGES_CODE, command),
             Command::PollMessages(command) => to_bytes(POLL_MESSAGES_CODE, command),
+            Command::SyncCreatedStream(command) => to_bytes(SYNC_CREATED_STREAM_CODE, command),
             Command::SyncMessages(command) => to_bytes(SYNC_MESSAGES_CODE, command),
         }
     }
@@ -83,6 +88,9 @@ impl Command {
             CREATE_STREAM_CODE => Ok(Command::CreateStream(CreateStream::from_bytes(bytes)?)),
             APPEND_MESSAGES_CODE => Ok(Command::AppendMessages(AppendMessages::from_bytes(bytes)?)),
             POLL_MESSAGES_CODE => Ok(Command::PollMessages(PollMessages::from_bytes(bytes)?)),
+            SYNC_CREATED_STREAM_CODE => Ok(Command::SyncCreatedStream(
+                SyncCreatedStream::from_bytes(bytes)?,
+            )),
             SYNC_MESSAGES_CODE => Ok(Command::SyncMessages(SyncMessages::from_bytes(bytes)?)),
             _ => Err(SystemError::InvalidCommandCode(code)),
         }
@@ -123,6 +131,9 @@ impl Display for Command {
                     "Poll messages -> offset: {}, count: {}",
                     poll_data.offset, poll_data.count
                 )
+            }
+            Command::SyncCreatedStream(sync_data) => {
+                write!(f, "Sync created stream: {:?}", sync_data.id)
             }
             Command::SyncMessages(sync_data) => {
                 write!(f, "Sync messages: {:?}", sync_data.messages)

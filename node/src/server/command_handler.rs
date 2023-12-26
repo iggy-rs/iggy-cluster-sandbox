@@ -42,6 +42,9 @@ pub async fn handle(
         Command::PollMessages(command) => {
             poll_messages_handler::handle(handler, command, cluster).await?;
         }
+        Command::SyncCreatedStream(command) => {
+            sync_created_stream_handler::handle(handler, command, cluster).await?;
+        }
         Command::SyncMessages(command) => {
             sync_messages_handler::handle(handler, command, cluster).await?;
         }
