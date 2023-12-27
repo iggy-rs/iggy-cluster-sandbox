@@ -234,4 +234,13 @@ impl Cluster {
             .vote(term, candidate_id, node_id)
             .await
     }
+
+    pub async fn is_leader(&self) -> bool {
+        let self_node = self.get_self_node();
+        if self_node.is_none() {
+            return false;
+        }
+
+        self_node.unwrap().is_leader().await
+    }
 }

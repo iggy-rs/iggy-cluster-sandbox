@@ -7,12 +7,17 @@ use tracing::info;
 
 pub(crate) async fn handle(
     handler: &mut ConnectionHandler,
-    _: &SyncCreatedStream,
+    command: &SyncCreatedStream,
     cluster: Rc<Cluster>,
 ) -> Result<(), SystemError> {
     cluster.verify_is_healthy().await?;
-    info!("Received sync created stream command");
+    info!(
+        "Received sync created stream with ID: {}",
+        command.stream_id
+    );
+    cluster
+        .create_stream(command.term, command.stream_id)
+        .await?;
     handler.send_empty_ok_response().await?;
-    info!("Sent a sync created stream response.");
     Ok(())
 }

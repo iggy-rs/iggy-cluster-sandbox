@@ -133,7 +133,7 @@ impl Display for Command {
                 )
             }
             Command::SyncCreatedStream(sync_data) => {
-                write!(f, "Sync created stream: {:?}", sync_data.id)
+                write!(f, "Sync created stream: {:?}", sync_data.stream_id)
             }
             Command::SyncMessages(sync_data) => {
                 write!(f, "Sync messages: {:?}", sync_data.messages)

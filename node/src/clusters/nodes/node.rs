@@ -116,6 +116,14 @@ impl Node {
         self.client.update_leader(term, leader_id).await
     }
 
+    pub async fn sync_created_stream(&self, term: u64, stream_id: u64) -> Result<(), SystemError> {
+        if self.is_self_node() {
+            return Ok(());
+        }
+
+        self.client.sync_created_stream(term, stream_id).await
+    }
+
     pub async fn disconnect(&self) -> Result<(), SystemError> {
         if self.is_self_node() {
             return Ok(());

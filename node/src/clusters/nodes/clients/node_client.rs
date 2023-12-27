@@ -8,6 +8,7 @@ use monoio::time::sleep;
 use sdk::commands::heartbeat::Heartbeat;
 use sdk::commands::hello::Hello;
 use sdk::commands::request_vote::RequestVote;
+use sdk::commands::sync_created_stream::SyncCreatedStream;
 use sdk::commands::update_leader::UpdateLeader;
 use sdk::error::SystemError;
 use std::net::SocketAddr;
@@ -240,6 +241,26 @@ impl NodeClient {
         info!(
             "Received an update leader ID: {leader_id} response from cluster node ID: {}, address: {} in term: {term}.",
             self.id, self.address,
+        );
+        Ok(())
+    }
+
+    pub async fn sync_created_stream(&self, term: u64, stream_id: u64) -> Result<(), SystemError> {
+        info!(
+            "Sending a sync stream created to cluster node ID: {}, address: {} in term: {}...",
+            self.id, self.address, term
+        );
+        let command = SyncCreatedStream::new_command(term, stream_id);
+        if let Err(error) = self.send_request(&command).await {
+            error!(
+                "Failed to send a sync stream created to cluster node ID: {}, address: {} in term: {}.",
+                self.id, self.address, term
+            );
+            return Err(error);
+        }
+        info!(
+            "Received a sync stream created response from cluster node ID: {}, address: {} in term: {}.",
+            self.id, self.address, term
         );
         Ok(())
     }

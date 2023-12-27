@@ -11,8 +11,8 @@ pub(crate) async fn handle(
 ) -> Result<(), SystemError> {
     cluster.verify_is_healthy().await?;
     cluster.verify_is_leader().await?;
-    let mut streamer = cluster.streamer.lock().await;
-    streamer.create_stream(command.id).await;
+    let term = cluster.election_manager.get_current_term().await;
+    cluster.create_stream(term, command.id).await?;
     handler.send_empty_ok_response().await?;
     Ok(())
 }
