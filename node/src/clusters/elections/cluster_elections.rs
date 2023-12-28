@@ -142,7 +142,7 @@ impl Cluster {
             info!("Update leader request sent to node ID: {}.", node.node.id);
         }
 
-        if updated_nodes_count < self.election_manager.get_required_votes_count() {
+        if updated_nodes_count < self.election_manager.get_quorum_count() {
             return Err(SystemError::LeaderRejected);
         }
 

@@ -95,7 +95,7 @@ impl ElectionManager {
         }
     }
 
-    pub fn get_required_votes_count(&self) -> u64 {
+    pub fn get_quorum_count(&self) -> u64 {
         self.nodes_count / 2 + 1
     }
 
@@ -155,7 +155,7 @@ impl ElectionManager {
             .lock()
             .await
             .gen_range(self.timeout_range.0..=self.timeout_range.1);
-        info!("Starting election for new term {term}, previous term: {previous_term}, required votes: {} timeout: {timeout} ms...", self.get_required_votes_count());
+        info!("Starting election for new term {term}, previous term: {previous_term}, required votes: {} timeout: {timeout} ms...", self.get_quorum_count());
         // Wait for random timeout and check if there is no leader in the meantime
         sleep(Duration::from_millis(timeout)).await;
         let current_term = *self.current_term.lock().await;
@@ -267,7 +267,7 @@ impl ElectionManager {
             "Most votes: {} in term: {term}, for node ID: {leader}",
             votes.len()
         );
-        if votes.len() as u64 > self.get_required_votes_count() {
+        if votes.len() as u64 > self.get_quorum_count() {
             self.set_election_completed_state(true).await;
             let leader = *leader;
             self.current_leader_id.lock().await.replace(leader);
@@ -296,7 +296,7 @@ impl ElectionManager {
         }
 
         let candidate_votes = candidate_votes.unwrap();
-        candidate_votes.len() as u64 >= self.get_required_votes_count()
+        candidate_votes.len() as u64 >= self.get_quorum_count()
     }
 
     pub async fn is_election_completed(&self) -> bool {

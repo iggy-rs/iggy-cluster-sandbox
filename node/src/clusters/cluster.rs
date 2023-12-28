@@ -379,4 +379,8 @@ impl Cluster {
 
         ClusterState::Healthy
     }
+
+    pub fn get_quorum_count(&self) -> u64 {
+        (self.nodes.len() / 2 + 1) as u64
+    }
 }

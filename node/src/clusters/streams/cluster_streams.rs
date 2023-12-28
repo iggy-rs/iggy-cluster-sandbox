@@ -18,6 +18,7 @@ impl Cluster {
             return Ok(());
         }
 
+        let mut synced_nodes = 1;
         for node in self.nodes.values() {
             if node.node.is_self_node() {
                 continue;
@@ -28,8 +29,21 @@ impl Cluster {
                     "Failed to sync created stream to cluster node with ID: {}, {error}",
                     node.node.id
                 );
+                continue;
             }
+
+            synced_nodes += 1;
         }
+
+        let quorum = self.get_quorum_count();
+        if synced_nodes >= quorum {
+            return Ok(());
+        }
+
+        error!(
+            "Failed to sync created stream to quorum of nodes, synced nodes: {synced_nodes} < quorum: {quorum}, reverting stream creation...",
+        );
+        self.streamer.lock().await.delete_stream(stream_id).await;
 
         Ok(())
     }

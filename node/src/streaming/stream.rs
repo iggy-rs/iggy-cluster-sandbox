@@ -82,6 +82,19 @@ impl Stream {
         );
     }
 
+    pub async fn delete(&self) {
+        if !Path::new(&self.directory_path).exists() {
+            error!("Stream with ID: {} does not exist", self.stream_id);
+        }
+
+        if std::fs::remove_dir_all(&self.directory_path).is_err() {
+            error!("Failed to delete stream with ID: {}", self.stream_id);
+            return;
+        }
+
+        info!("Deleted stream with ID: {}", self.stream_id);
+    }
+
     pub async fn append_messages(
         &mut self,
         messages: &[AppendableMessage],

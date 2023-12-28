@@ -4,7 +4,7 @@ use sdk::commands::append_messages::AppendMessages;
 use sdk::error::SystemError;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
-use tracing::warn;
+use tracing::{info, warn};
 
 #[derive(Debug)]
 pub(crate) struct Streamer {
@@ -41,6 +41,18 @@ impl Streamer {
         let mut stream = Stream::new(id, self.node_id, &self.path);
         stream.init().await;
         self.streams.insert(id, stream);
+    }
+
+    pub async fn delete_stream(&mut self, id: u64) {
+        let stream = self.streams.remove(&id);
+        if stream.is_none() {
+            warn!("Stream with ID: {id} does not exist.");
+            return;
+        }
+
+        let stream = stream.unwrap();
+        stream.delete().await;
+        info!("Deleted stream with ID: {id}.");
     }
 
     pub async fn init(&mut self) {
