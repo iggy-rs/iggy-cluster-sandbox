@@ -3,6 +3,7 @@ use crate::clusters::nodes::clients::node_client::NodeClient;
 use crate::types::{NodeId, Term};
 use futures::lock::Mutex;
 use monoio::time::sleep;
+use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
 use std::time::Duration;
 use tracing::{error, info};
@@ -122,6 +123,19 @@ impl Node {
         }
 
         self.client.sync_created_stream(term, stream_id).await
+    }
+
+    pub async fn sync_messages(
+        &self,
+        term: u64,
+        stream_id: u64,
+        messages: &[AppendableMessage],
+    ) -> Result<(), SystemError> {
+        if self.is_self_node() {
+            return Ok(());
+        }
+
+        self.client.sync_messages(term, stream_id, messages).await
     }
 
     pub async fn disconnect(&self) -> Result<(), SystemError> {

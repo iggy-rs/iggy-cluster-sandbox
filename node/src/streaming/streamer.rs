@@ -1,6 +1,6 @@
 use crate::streaming::messages::Message;
 use crate::streaming::stream::Stream;
-use sdk::commands::append_messages::AppendMessages;
+use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
@@ -51,7 +51,7 @@ impl Streamer {
         }
 
         let stream = stream.unwrap();
-        stream.delete().await;
+        stream.delete();
         info!("Deleted stream with ID: {id}.");
     }
 
@@ -63,15 +63,16 @@ impl Streamer {
 
     pub async fn append_messages(
         &mut self,
-        append_messages: &AppendMessages,
+        stream_id: u64,
+        messages: &[AppendableMessage],
     ) -> Result<(), SystemError> {
-        let stream = self.streams.get_mut(&append_messages.stream_id);
+        let stream = self.streams.get_mut(&stream_id);
         if stream.is_none() {
             return Err(SystemError::InvalidStreamId);
         }
 
         let stream = stream.unwrap();
-        stream.append_messages(&append_messages.messages).await
+        stream.append_messages(messages).await
     }
 
     pub fn poll_messages(

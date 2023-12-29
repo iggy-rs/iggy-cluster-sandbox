@@ -82,7 +82,7 @@ impl Stream {
         );
     }
 
-    pub async fn delete(&self) {
+    pub fn delete(&self) {
         if !Path::new(&self.directory_path).exists() {
             error!("Stream with ID: {} does not exist", self.stream_id);
         }

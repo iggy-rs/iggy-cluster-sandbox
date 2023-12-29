@@ -5,10 +5,12 @@ use crate::types::{NodeId, Term};
 use futures::lock::Mutex;
 use monoio::net::TcpStream;
 use monoio::time::sleep;
+use sdk::commands::append_messages::AppendableMessage;
 use sdk::commands::heartbeat::Heartbeat;
 use sdk::commands::hello::Hello;
 use sdk::commands::request_vote::RequestVote;
 use sdk::commands::sync_created_stream::SyncCreatedStream;
+use sdk::commands::sync_messages::SyncMessages;
 use sdk::commands::update_leader::UpdateLeader;
 use sdk::error::SystemError;
 use std::net::SocketAddr;
@@ -260,6 +262,39 @@ impl NodeClient {
         }
         info!(
             "Received a sync stream created response from cluster node ID: {}, address: {} in term: {}.",
+            self.id, self.address, term
+        );
+        Ok(())
+    }
+
+    pub async fn sync_messages(
+        &self,
+        term: u64,
+        stream_id: u64,
+        messages: &[AppendableMessage],
+    ) -> Result<(), SystemError> {
+        info!(
+            "Sending a sync messages to cluster node ID: {}, address: {} in term: {}...",
+            self.id, self.address, term
+        );
+        let mut synced_messages = Vec::with_capacity(messages.len());
+        for message in messages {
+            synced_messages.push(AppendableMessage {
+                id: message.id,
+                payload: message.payload.clone(),
+            });
+        }
+
+        let command = SyncMessages::new_command(term, stream_id, synced_messages);
+        if let Err(error) = self.send_request(&command).await {
+            error!(
+                "Failed to send a sync messages to cluster node ID: {}, address: {} in term: {}.",
+                self.id, self.address, term
+            );
+            return Err(error);
+        }
+        info!(
+            "Received a sync messages response from cluster node ID: {}, address: {} in term: {}.",
             self.id, self.address, term
         );
         Ok(())

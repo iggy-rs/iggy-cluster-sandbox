@@ -11,8 +11,10 @@ pub(crate) async fn handle(
 ) -> Result<(), SystemError> {
     cluster.verify_is_healthy().await?;
     cluster.verify_is_leader().await?;
-    let mut streamer = cluster.streamer.lock().await;
-    streamer.append_messages(command).await?;
+    let term = cluster.election_manager.get_current_term().await;
+    cluster
+        .append_messages(term, command.stream_id, &command.messages)
+        .await?;
     handler.send_empty_ok_response().await?;
     Ok(())
 }

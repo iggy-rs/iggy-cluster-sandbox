@@ -1,49 +1,22 @@
 use crate::bytes_serializable::BytesSerializable;
+use crate::commands::append_messages::AppendableMessage;
 use crate::commands::command::Command;
 use crate::error::SystemError;
 use bytes::BufMut;
 
 #[derive(Debug)]
 pub struct SyncMessages {
-    pub messages: Vec<Message>,
-}
-
-#[derive(Debug)]
-pub struct Message {
-    pub offset: u64,
-    pub id: u64,
-    pub payload: Vec<u8>,
+    pub term: u64,
+    pub stream_id: u64,
+    pub messages: Vec<AppendableMessage>,
 }
 
 impl SyncMessages {
-    pub fn new_command(messages: Vec<Message>) -> Command {
-        Command::SyncMessages(SyncMessages { messages })
-    }
-}
-
-impl BytesSerializable for Message {
-    fn as_bytes(&self) -> Vec<u8> {
-        let payload_length = self.payload.len();
-        let mut bytes = Vec::with_capacity(20 + payload_length);
-        bytes.put_u64_le(self.offset);
-        bytes.put_u64_le(self.id);
-        bytes.put_u32_le(payload_length as u32);
-        bytes.extend(&self.payload);
-        bytes
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Result<Self, SystemError> {
-        if bytes.is_empty() {
-            return Err(SystemError::InvalidCommand);
-        }
-        let offset = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
-        let id = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
-        let payload_length = u32::from_le_bytes(bytes[16..20].try_into().unwrap()) as usize;
-        let payload = bytes[20..payload_length + 20].to_vec();
-        Ok(Message {
-            offset,
-            id,
-            payload,
+    pub fn new_command(term: u64, stream_id: u64, messages: Vec<AppendableMessage>) -> Command {
+        Command::SyncMessages(SyncMessages {
+            term,
+            stream_id,
+            messages,
         })
     }
 }
@@ -51,6 +24,8 @@ impl BytesSerializable for Message {
 impl BytesSerializable for SyncMessages {
     fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
+        bytes.put_u64_le(self.term);
+        bytes.put_u64_le(self.stream_id);
         for message in &self.messages {
             bytes.extend(&message.as_bytes());
         }
@@ -62,14 +37,20 @@ impl BytesSerializable for SyncMessages {
             return Err(SystemError::InvalidCommand);
         }
 
+        let term = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
+        let stream_id = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
         let mut messages = Vec::new();
-        let mut position = 0;
+        let mut position = 16;
         while position < bytes.len() {
-            let message = Message::from_bytes(&bytes[position..])?;
+            let message = AppendableMessage::from_bytes(&bytes[position..])?;
             position += 20 + message.payload.len();
             messages.push(message);
         }
 
-        Ok(SyncMessages { messages })
+        Ok(SyncMessages {
+            term,
+            stream_id,
+            messages,
+        })
     }
 }
