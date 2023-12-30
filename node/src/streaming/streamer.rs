@@ -4,6 +4,8 @@ use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
+use std::fs::create_dir_all;
+use std::path::Path;
 use tracing::{info, warn};
 
 #[derive(Debug)]
@@ -56,8 +58,34 @@ impl Streamer {
     }
 
     pub async fn init(&mut self) {
-        for stream in self.streams.values_mut() {
+        if !Path::new(&self.path).exists() {
+            create_dir_all(&self.path)
+                .unwrap_or_else(|_| panic!("Failed to create streams directory: {}", self.path));
+            info!("Created streams directory: {}", self.path);
+            return;
+        }
+
+        let directory = std::fs::read_dir(&self.path)
+            .unwrap_or_else(|_| panic!("Failed to read streams directory: {}", self.path));
+
+        for entry in directory {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+
+            let stream_id = path
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .parse::<u64>()
+                .unwrap();
+            let mut stream = Stream::new(stream_id, self.node_id, &self.path);
             stream.init().await;
+            self.streams.insert(stream_id, stream);
+            info!("Initialized stream with ID: {}", stream_id);
         }
     }
 
