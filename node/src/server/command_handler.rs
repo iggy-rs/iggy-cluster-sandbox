@@ -33,6 +33,9 @@ pub async fn handle(
         Command::GetMetadata(_) => {
             get_metadata_handler::handle(handler, cluster).await?;
         }
+        Command::GetStreams(_) => {
+            get_streams_handler::handle(handler, cluster).await?;
+        }
         Command::CreateStream(command) => {
             create_stream_handler::handle(handler, command, cluster).await?;
         }

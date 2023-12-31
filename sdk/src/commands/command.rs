@@ -2,6 +2,7 @@ use crate::bytes_serializable::BytesSerializable;
 use crate::commands::append_messages::AppendMessages;
 use crate::commands::create_stream::CreateStream;
 use crate::commands::get_metadata::GetMetadata;
+use crate::commands::get_streams::GetStreams;
 use crate::commands::heartbeat::Heartbeat;
 use crate::commands::hello::Hello;
 use crate::commands::ping::Ping;
@@ -22,7 +23,8 @@ const REQUEST_VOTE_CODE: u32 = 10;
 const UPDATE_LEADER_CODE: u32 = 11;
 const SYNC_CREATED_STREAM_CODE: u32 = 20;
 const SYNC_MESSAGES_CODE: u32 = 21;
-const CREATE_STREAM_CODE: u32 = 30;
+const GET_STREAMS_CODE: u32 = 30;
+const CREATE_STREAM_CODE: u32 = 31;
 const APPEND_MESSAGES_CODE: u32 = 40;
 const POLL_MESSAGES_CODE: u32 = 50;
 
@@ -34,6 +36,7 @@ pub enum Command {
     RequestVote(RequestVote),
     UpdateLeader(UpdateLeader),
     GetMetadata(GetMetadata),
+    GetStreams(GetStreams),
     CreateStream(CreateStream),
     AppendMessages(AppendMessages),
     PollMessages(PollMessages),
@@ -50,6 +53,7 @@ impl Command {
             Command::RequestVote(_) => "request_vote",
             Command::UpdateLeader(_) => "update_leader",
             Command::GetMetadata(_) => "get_metadata",
+            Command::GetStreams(_) => "get_streams",
             Command::CreateStream(_) => "create_stream",
             Command::AppendMessages(_) => "append_messages",
             Command::PollMessages(_) => "poll_messages",
@@ -66,6 +70,7 @@ impl Command {
             Command::RequestVote(command) => to_bytes(REQUEST_VOTE_CODE, command),
             Command::UpdateLeader(command) => to_bytes(UPDATE_LEADER_CODE, command),
             Command::GetMetadata(command) => to_bytes(GET_METADATA_CODE, command),
+            Command::GetStreams(command) => to_bytes(GET_STREAMS_CODE, command),
             Command::CreateStream(command) => to_bytes(CREATE_STREAM_CODE, command),
             Command::AppendMessages(command) => to_bytes(APPEND_MESSAGES_CODE, command),
             Command::PollMessages(command) => to_bytes(POLL_MESSAGES_CODE, command),
@@ -85,6 +90,7 @@ impl Command {
             REQUEST_VOTE_CODE => Ok(Command::RequestVote(RequestVote::from_bytes(bytes)?)),
             UPDATE_LEADER_CODE => Ok(Command::UpdateLeader(UpdateLeader::from_bytes(bytes)?)),
             GET_METADATA_CODE => Ok(Command::GetMetadata(GetMetadata::from_bytes(bytes)?)),
+            GET_STREAMS_CODE => Ok(Command::GetStreams(GetStreams::from_bytes(bytes)?)),
             CREATE_STREAM_CODE => Ok(Command::CreateStream(CreateStream::from_bytes(bytes)?)),
             APPEND_MESSAGES_CODE => Ok(Command::AppendMessages(AppendMessages::from_bytes(bytes)?)),
             POLL_MESSAGES_CODE => Ok(Command::PollMessages(PollMessages::from_bytes(bytes)?)),
@@ -119,6 +125,7 @@ impl Display for Command {
                 write!(f, "Update leader: {}", update_leader.term)
             }
             Command::GetMetadata(_) => write!(f, "Get metadata"),
+            Command::GetStreams(_) => write!(f, "Get streams"),
             Command::CreateStream(create_stream) => {
                 write!(f, "Create stream: {}", create_stream.id)
             }

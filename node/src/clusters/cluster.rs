@@ -5,7 +5,9 @@ use crate::streaming::streamer::Streamer;
 use crate::types::NodeId;
 use futures::lock::Mutex;
 use sdk::error::SystemError;
+use sdk::models::message::Message;
 use sdk::models::metadata::{Metadata, NodeInfo, StreamInfo};
+use sdk::models::stream::Stream;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::rc::Rc;
@@ -318,6 +320,37 @@ impl Cluster {
 
         error!("This node is not a leader.");
         Err(SystemError::NotLeader)
+    }
+
+    pub async fn poll_messages(
+        &self,
+        stream_id: u64,
+        offset: u64,
+        count: u64,
+    ) -> Result<Vec<Message>, SystemError> {
+        if !self.is_leader().await {
+            return Err(SystemError::NotLeader);
+        }
+
+        let streamer = self.streamer.lock().await;
+        Ok(streamer.poll_messages(stream_id, offset, count)?.to_vec())
+    }
+
+    pub async fn get_streams(&self) -> Result<Vec<Stream>, SystemError> {
+        if !self.is_leader().await {
+            return Err(SystemError::NotLeader);
+        }
+
+        let streamer = self.streamer.lock().await;
+        let streams = streamer
+            .get_streams()
+            .iter()
+            .map(|stream| Stream {
+                id: stream.stream_id,
+                offset: stream.current_offset,
+            })
+            .collect();
+        Ok(streams)
     }
 
     pub async fn get_metadata(&self) -> Metadata {

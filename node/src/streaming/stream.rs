@@ -1,9 +1,9 @@
 use crate::streaming::file;
-use crate::streaming::messages::Message;
 use bytes::Bytes;
 use sdk::bytes_serializable::BytesSerializable;
 use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
+use sdk::models::message::Message;
 use std::fmt::{Display, Formatter};
 use std::fs::create_dir_all;
 use std::path::Path;
@@ -162,7 +162,7 @@ impl Stream {
             end_offset = self.current_offset;
         }
 
-        let messages = self.messages[start_offset as usize..=end_offset as usize].as_ref();
+        let messages = &self.messages[start_offset as usize..=end_offset as usize];
         Ok(messages)
     }
 

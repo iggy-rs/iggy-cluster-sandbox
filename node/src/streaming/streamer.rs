@@ -1,7 +1,7 @@
-use crate::streaming::messages::Message;
 use crate::streaming::stream::Stream;
 use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
+use sdk::models::message::Message;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
 use std::fs::create_dir_all;
@@ -103,7 +103,7 @@ impl Streamer {
         stream.append_messages(messages).await
     }
 
-    pub fn poll_messages(
+    pub(crate) fn poll_messages(
         &self,
         stream_id: u64,
         offset: u64,

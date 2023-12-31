@@ -1,6 +1,7 @@
 pub mod append_messages_handler;
 pub mod create_stream_handler;
 pub mod get_metadata_handler;
+pub mod get_streams_handler;
 pub mod heartbeat_handler;
 pub mod hello_handler;
 pub mod ping_handler;

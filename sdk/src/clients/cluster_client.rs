@@ -4,11 +4,13 @@ use crate::commands::append_messages::{AppendMessages, AppendableMessage};
 use crate::commands::command::Command;
 use crate::commands::create_stream::CreateStream;
 use crate::commands::get_metadata::GetMetadata;
+use crate::commands::get_streams::GetStreams;
 use crate::commands::ping::Ping;
 use crate::commands::poll_messages::PollMessages;
 use crate::error::SystemError;
 use crate::models::message::Message;
 use crate::models::metadata::Metadata;
+use crate::models::stream::Stream;
 use bytes::Bytes;
 use futures::lock::Mutex;
 use monoio::time::sleep;
@@ -122,6 +124,20 @@ impl ClusterClient {
             messages.push(message);
         }
         Ok(messages)
+    }
+
+    pub async fn get_streams(&self) -> Result<Vec<Stream>, SystemError> {
+        let leader_address = self.get_leader_address().await?;
+        let command = GetStreams::new_command();
+        let bytes = self.send(&command, &leader_address).await?;
+        let mut streams = Vec::new();
+        let mut position = 0;
+        while position < bytes.len() {
+            let stream = Stream::from_bytes(&bytes[position..position + 16])?;
+            position += 16;
+            streams.push(stream);
+        }
+        Ok(streams)
     }
 
     pub async fn ping(&self) -> Result<(), SystemError> {

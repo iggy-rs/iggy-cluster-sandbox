@@ -32,6 +32,13 @@ pub(crate) async fn handle(command: Command, client: &ClusterClient) -> Result<(
         Command::GetMetadata(_) => {
             client.update_metadata().await?;
         }
+        Command::GetStreams(_) => {
+            let streams = client.get_streams().await?;
+            info!("Got {} streams", streams.len());
+            for stream in streams {
+                info!("{stream}");
+            }
+        }
         Command::CreateStream(create_stream) => {
             client.create_stream(create_stream.id).await?;
             info!("Created stream {}", create_stream.id);
