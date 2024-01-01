@@ -39,11 +39,12 @@ impl BytesSerializable for SyncMessages {
 
         let term = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
         let stream_id = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
+        let payload = &bytes[16..];
         let mut messages = Vec::new();
-        let mut position = 16;
-        while position < bytes.len() {
-            let message = AppendableMessage::from_bytes(&bytes[position..])?;
-            position += 20 + message.payload.len();
+        let mut position = 0;
+        while position < payload.len() {
+            let message = AppendableMessage::from_bytes(&payload[position..])?;
+            position += 12 + message.payload.len();
             messages.push(message);
         }
 

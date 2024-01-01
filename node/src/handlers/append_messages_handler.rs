@@ -15,6 +15,7 @@ pub(crate) async fn handle(
     cluster
         .append_messages(term, command.stream_id, &command.messages)
         .await?;
-    handler.send_empty_ok_response().await?;
-    Ok(())
+    cluster
+        .sync_appended_messages(handler, term, command.stream_id, &command.messages)
+        .await
 }

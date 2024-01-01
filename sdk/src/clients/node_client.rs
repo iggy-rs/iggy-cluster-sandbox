@@ -1,5 +1,6 @@
 use crate::commands::command::Command;
 use crate::error::SystemError;
+use futures::lock::Mutex;
 use monoio::io::{AsyncReadRent, AsyncWriteRentExt};
 use monoio::net::TcpStream;
 use tracing::{error, info};
@@ -10,6 +11,7 @@ const EMPTY_PAYLOAD: Vec<u8> = vec![];
 pub struct NodeClient {
     tcp_stream: TcpStream,
     address: String,
+    is_connected: Mutex<bool>,
 }
 
 impl NodeClient {
@@ -18,10 +20,30 @@ impl NodeClient {
         Ok(Self {
             tcp_stream,
             address: address.to_string(),
+            is_connected: Mutex::new(true),
         })
     }
 
+    pub async fn connect(&mut self) -> Result<(), SystemError> {
+        let tcp_stream = TcpStream::connect(self.address.clone()).await?;
+        self.tcp_stream = tcp_stream;
+        *self.is_connected.lock().await = true;
+        Ok(())
+    }
+
+    pub async fn is_connected(&self) -> bool {
+        *self.is_connected.lock().await
+    }
+
     pub async fn send(&mut self, command: &Command) -> Result<Vec<u8>, SystemError> {
+        if !self.is_connected().await {
+            error!(
+                "Cannot send command to Iggy node at address: {}, node is not connected.",
+                self.address
+            );
+            return Err(SystemError::CannotSendCommand);
+        }
+
         info!(
             "Sending command to Iggy node at address: {}...",
             self.address
@@ -32,6 +54,7 @@ impl NodeClient {
                 "Failed to send command to Iggy node at address: {}.",
                 self.address
             );
+            *self.is_connected.lock().await = false;
             return Err(SystemError::CannotSendCommand);
         }
 

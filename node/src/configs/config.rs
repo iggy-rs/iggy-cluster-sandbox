@@ -1,5 +1,23 @@
 use serde::{Deserialize, Serialize};
 use std::fmt::{Display, Formatter};
+use std::str::FromStr;
+
+#[derive(Debug, Deserialize, Serialize, Copy, Clone, PartialEq)]
+pub enum RequiredAcknowledgements {
+    None,
+    Leader,
+    Majority,
+}
+
+impl Display for RequiredAcknowledgements {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RequiredAcknowledgements::None => write!(f, "none"),
+            RequiredAcknowledgements::Leader => write!(f, "leader"),
+            RequiredAcknowledgements::Majority => write!(f, "majority"),
+        }
+    }
+}
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 pub(crate) struct SystemConfig {
@@ -36,6 +54,7 @@ pub(crate) struct ClusterConfig {
     pub nodes: Vec<ClusterNodeConfig>,
     pub election_timeout_range_from: u64,
     pub election_timeout_range_to: u64,
+    pub required_acknowledgements: RequiredAcknowledgements,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -44,6 +63,18 @@ pub(crate) struct ClusterNodeConfig {
     pub name: String,
     pub public_address: String,
     pub internal_address: String,
+}
+
+impl FromStr for RequiredAcknowledgements {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "none" => Ok(RequiredAcknowledgements::None),
+            "leader" => Ok(RequiredAcknowledgements::Leader),
+            "majority" => Ok(RequiredAcknowledgements::Majority),
+            _ => Err(format!("Invalid required acknowledgements value: {}", s)),
+        }
+    }
 }
 
 impl Default for StreamConfig {
@@ -83,6 +114,7 @@ impl Default for ClusterConfig {
             nodes: vec![],
             election_timeout_range_from: 100,
             election_timeout_range_to: 300,
+            required_acknowledgements: RequiredAcknowledgements::Majority,
         }
     }
 }
@@ -101,13 +133,8 @@ impl Display for ClusterConfig {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{ max_timeout: {}, members: {} }}",
-            self.max_timeout,
-            self.nodes
-                .iter()
-                .map(|m| m.to_string())
-                .collect::<Vec<String>>()
-                .join(", ")
+            "{{ max_timeout: {}, heartbeat_interval: {}, reconnection_interval: {}, reconnection_retries: {}, secret: {}, nodes: {:?}, election_timeout_range_from: {}, election_timeout_range_to: {}, required_acknowledgements: {} }}",
+            self.max_timeout, self.heartbeat_interval, self.reconnection_interval, self.reconnection_retries, self.secret, self.nodes, self.election_timeout_range_from, self.election_timeout_range_to, self.required_acknowledgements
         )
     }
 }

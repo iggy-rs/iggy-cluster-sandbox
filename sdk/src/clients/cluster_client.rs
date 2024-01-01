@@ -142,7 +142,7 @@ impl ClusterClient {
 
     pub async fn ping(&self) -> Result<(), SystemError> {
         let command = Ping::new_command();
-        let address = self.get_first_node_address().await?;
+        let address = self.get_first_available_node_address().await?;
         self.send(&command, &address).await?;
         Ok(())
     }
@@ -166,7 +166,7 @@ impl ClusterClient {
     }
 
     pub async fn update_metadata(&self) -> Result<(), SystemError> {
-        let address = self.get_first_node_address().await?;
+        let address = self.get_first_available_node_address().await?;
         let command = GetMetadata::new_command();
         let bytes = self.send(&command, &address).await?;
         let metadata = Metadata::from_bytes(&bytes)?;
@@ -175,11 +175,13 @@ impl ClusterClient {
         Ok(())
     }
 
-    async fn get_first_node_address(&self) -> Result<String, SystemError> {
+    async fn get_first_available_node_address(&self) -> Result<String, SystemError> {
         for (address, client) in &self.clients {
             let client = client.lock().await;
-            if client.is_some() {
-                return Ok(address.to_string());
+            if let Some(client) = client.as_ref() {
+                if client.is_connected().await {
+                    return Ok(address.to_string());
+                }
             }
         }
 
@@ -205,9 +207,22 @@ impl ClusterClient {
 
         let node = node.unwrap();
         let address = &node.address;
-        if !self.clients.contains_key(address) {
+        let node_client = self.clients.get(address);
+        if node_client.is_none() {
             error!("Leader not found for address: {address}");
             return Err(SystemError::InvalidClusterNodeAddress(address.to_string()));
+        }
+
+        let node_client = node_client.unwrap().lock().await;
+        if node_client.is_none() {
+            error!("Leader not found for address: {address}");
+            return Err(SystemError::InvalidClusterNodeAddress(address.to_string()));
+        }
+
+        let node_client = node_client.as_ref().unwrap();
+        if !node_client.is_connected().await {
+            error!("Leader not found for address: {address}");
+            return Err(SystemError::LeaderDisconnected);
         }
 
         Ok(address.to_string())
@@ -228,6 +243,11 @@ impl ClusterClient {
         }
 
         let node_client = client.as_mut().unwrap();
+        if !node_client.is_connected().await {
+            info!("Reconnecting to Iggy node at address: {address}...");
+            node_client.connect().await?;
+        }
+
         let result = node_client.send(command).await;
         if result.is_ok() {
             return result;

@@ -42,11 +42,20 @@ async fn main() -> Result<(), SystemError> {
         let command = command.unwrap();
         if let Err(error) = command_handler::handle(command, &client).await {
             error!("There was an error sending the command to the cluster. Error: {error}");
-            if let SystemError::NotLeader = error {
-                warn!("Leader has changed. Fetching the metadata again...");
-                if client.update_metadata().await.is_err() {
-                    error!("There was an error fetching the metadata");
+            match error {
+                SystemError::NotLeader => {
+                    warn!("Leader has changed. Fetching the metadata again...");
+                    if client.update_metadata().await.is_err() {
+                        error!("There was an error fetching the metadata");
+                    }
                 }
+                SystemError::LeaderDisconnected => {
+                    warn!("Leader has disconnected. Fetching the metadata again...");
+                    if client.update_metadata().await.is_err() {
+                        error!("There was an error fetching the metadata");
+                    }
+                }
+                _ => {}
             }
         };
     }

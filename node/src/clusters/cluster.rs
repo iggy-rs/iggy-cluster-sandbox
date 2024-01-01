@@ -1,6 +1,6 @@
 use crate::clusters::elections::election::ElectionManager;
 use crate::clusters::nodes::node::{Node, Resiliency};
-use crate::configs::config::ClusterConfig;
+use crate::configs::config::{ClusterConfig, RequiredAcknowledgements};
 use crate::streaming::streamer::Streamer;
 use crate::types::NodeId;
 use futures::lock::Mutex;
@@ -35,6 +35,7 @@ pub struct Cluster {
     pub secret: String,
     pub election_manager: ElectionManager,
     pub heartbeat_interval: Duration,
+    pub required_acknowledgements: RequiredAcknowledgements,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -123,6 +124,7 @@ impl Cluster {
             nodes,
             streamer: Mutex::new(streamer),
             secret: config.secret.to_string(),
+            required_acknowledgements: config.required_acknowledgements,
         })
     }
 

@@ -17,6 +17,7 @@ reconnection_retries = 10
 secret = "secret123!"
 election_timeout_range_from = 150
 election_timeout_range_to = 300
+required_acknowledgements = "Majority"
 
 [[cluster.nodes]]
 id = 1

@@ -13,6 +13,5 @@ pub(crate) async fn handle(
     cluster.verify_is_leader().await?;
     let term = cluster.election_manager.get_current_term().await;
     cluster.create_stream(term, command.id).await?;
-    handler.send_empty_ok_response().await?;
-    Ok(())
+    cluster.sync_created_stream(handler, term, command.id).await
 }

@@ -62,6 +62,12 @@ pub enum SystemError {
     NotLeader,
     #[error("Leader not elected")]
     LeaderNotElected,
+    #[error("Cannot sync appended messages")]
+    CannotSyncAppendedMessages,
+    #[error("Cannot sync created stream")]
+    CannotSyncCreatedStream,
+    #[error("Leader disconnected")]
+    LeaderDisconnected,
 }
 
 impl SystemError {
@@ -96,6 +102,9 @@ impl SystemError {
             SystemError::LeaderAlreadyElected => 27,
             SystemError::NotLeader => 28,
             SystemError::LeaderNotElected => 29,
+            SystemError::CannotSyncAppendedMessages => 30,
+            SystemError::CannotSyncCreatedStream => 31,
+            SystemError::LeaderDisconnected => 32,
         }
     }
 }
