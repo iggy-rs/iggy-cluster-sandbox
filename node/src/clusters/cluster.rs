@@ -174,6 +174,12 @@ impl Cluster {
         Ok(())
     }
 
+    pub async fn init(&self) -> Result<(), SystemError> {
+        self.verify_is_healthy().await?;
+        // TODO: Synchronize streams from other nodes.
+        Ok(())
+    }
+
     async fn init_node_connection(cluster_node: Rc<ClusterNode>) -> Result<(), SystemError> {
         let name = cluster_node.node.name.clone();
         if let Err(error) = Self::connect_to_node(cluster_node).await {
