@@ -41,7 +41,6 @@ async fn main() -> Result<(), SystemError> {
     let cluster = Rc::new(cluster);
     sync_server::start(&system_config.node.address, cluster.clone());
     public_server::start(&system_config.server.address, cluster.clone());
-    cluster.connect().await?;
     cluster.init().await?;
     cluster.start_election().await?;
     heartbeats::subscribe(cluster.clone());

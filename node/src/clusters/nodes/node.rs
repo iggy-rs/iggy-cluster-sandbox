@@ -5,6 +5,7 @@ use futures::lock::Mutex;
 use monoio::time::sleep;
 use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
+use sdk::models::stream::Stream;
 use std::time::Duration;
 use tracing::{error, info};
 
@@ -115,6 +116,14 @@ impl Node {
         }
 
         self.client.update_leader(term, leader_id).await
+    }
+
+    pub async fn get_streams(&self) -> Result<Vec<Stream>, SystemError> {
+        if self.is_self_node() {
+            return Ok(Vec::new());
+        }
+
+        self.client.get_streams().await
     }
 
     pub async fn sync_created_stream(&self, term: u64, stream_id: u64) -> Result<(), SystemError> {

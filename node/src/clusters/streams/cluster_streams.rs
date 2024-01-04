@@ -82,4 +82,31 @@ impl Cluster {
 
         Err(SystemError::CannotSyncCreatedStream)
     }
+
+    pub async fn sync_streams_from_other_nodes(&self) -> Result<(), SystemError> {
+        for node in self.nodes.values() {
+            if node.node.is_self_node() {
+                continue;
+            }
+
+            let streams = node.node.get_streams().await;
+            if streams.is_err() {
+                let error = streams.unwrap_err();
+                error!(
+                    "Failed to sync streams from cluster node with ID: {}, {error}",
+                    node.node.id
+                );
+                continue;
+            }
+
+            let node_id = node.node.id;
+            let streams = streams.unwrap();
+            for stream in streams {
+                info!("Syncing stream: {stream} from cluster node with ID: {node_id}");
+                self.streamer.lock().await.create_stream(stream.id).await;
+            }
+        }
+
+        Ok(())
+    }
 }

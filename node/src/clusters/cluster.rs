@@ -152,7 +152,13 @@ impl Cluster {
         )
     }
 
-    pub async fn connect(&self) -> Result<(), SystemError> {
+    pub async fn init(&self) -> Result<(), SystemError> {
+        self.connect_to_all_nodes().await?;
+        self.sync_streams_from_other_nodes().await?;
+        Ok(())
+    }
+
+    async fn connect_to_all_nodes(&self) -> Result<(), SystemError> {
         info!("Connecting all cluster nodes...");
         let mut connections = 0;
         let expected_connections = (self.nodes.len() / 2) + 1;
@@ -171,12 +177,6 @@ impl Cluster {
         }
 
         info!("All cluster nodes connected.");
-        Ok(())
-    }
-
-    pub async fn init(&self) -> Result<(), SystemError> {
-        self.verify_is_healthy().await?;
-        // TODO: Synchronize streams from other nodes.
         Ok(())
     }
 

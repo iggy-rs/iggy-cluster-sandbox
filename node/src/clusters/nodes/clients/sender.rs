@@ -4,7 +4,7 @@ use sdk::error::SystemError;
 use tracing::{debug, warn};
 
 impl NodeClient {
-    pub async fn send_request(&self, command: &Command) -> Result<(), SystemError> {
+    pub async fn send_request(&self, command: &Command) -> Result<Vec<u8>, SystemError> {
         if !self.is_connected().await {
             warn!("Cannot send a request, client is disconnected.");
             return Err(SystemError::ClientDisconnected);
@@ -31,6 +31,6 @@ impl NodeClient {
             "Sent a request to cluster node with address: {}.",
             self.address
         );
-        Ok(())
+        Ok(result.unwrap().1)
     }
 }

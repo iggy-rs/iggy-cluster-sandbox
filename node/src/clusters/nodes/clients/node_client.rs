@@ -5,7 +5,9 @@ use crate::types::{NodeId, Term};
 use futures::lock::Mutex;
 use monoio::net::TcpStream;
 use monoio::time::sleep;
+use sdk::bytes_serializable::BytesSerializable;
 use sdk::commands::append_messages::AppendableMessage;
+use sdk::commands::get_streams::GetStreams;
 use sdk::commands::heartbeat::Heartbeat;
 use sdk::commands::hello::Hello;
 use sdk::commands::request_vote::RequestVote;
@@ -13,6 +15,7 @@ use sdk::commands::sync_created_stream::SyncCreatedStream;
 use sdk::commands::sync_messages::SyncMessages;
 use sdk::commands::update_leader::UpdateLeader;
 use sdk::error::SystemError;
+use sdk::models::stream::Stream;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
 use tracing::{debug, error, info, warn};
@@ -245,6 +248,38 @@ impl NodeClient {
             self.id, self.address,
         );
         Ok(())
+    }
+
+    pub async fn get_streams(&self) -> Result<Vec<Stream>, SystemError> {
+        info!(
+            "Sending a get streams to cluster node ID: {}, address: {}...",
+            self.id, self.address
+        );
+        let command = GetStreams::new_command();
+        let result = self.send_request(&command).await;
+        if result.is_err() {
+            error!(
+                "Failed to send a get streams to cluster node ID: {}, address: {}.",
+                self.id, self.address
+            );
+            return Err(result.unwrap_err());
+        }
+
+        info!(
+            "Received a get streams response from cluster node ID: {}, address: {}.",
+            self.id, self.address
+        );
+
+        let bytes = result.unwrap();
+        let mut streams = Vec::new();
+        let mut position = 0;
+        while position < bytes.len() {
+            let stream = Stream::from_bytes(&bytes[position..position + 16])?;
+            position += 16;
+            streams.push(stream);
+        }
+
+        Ok(streams)
     }
 
     pub async fn sync_created_stream(&self, term: u64, stream_id: u64) -> Result<(), SystemError> {
