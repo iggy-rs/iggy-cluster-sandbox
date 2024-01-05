@@ -25,6 +25,7 @@ impl Cluster {
             if let Some(leader) = self.election_manager.get_leader_id().await {
                 self_node.set_state(ClusterNodeState::Follower).await;
                 let term = self.election_manager.get_current_term().await;
+                self.state.lock().await.set_term(term);
                 info!("Leader ID: {leader} was already elected in term {term}. Skipping election.");
                 break;
             }
@@ -37,6 +38,7 @@ impl Cluster {
                 ElectionState::TermChanged(new_term) => {
                     if let Some(leader) = self.election_manager.get_leader_id().await {
                         self_node.set_state(ClusterNodeState::Follower).await;
+                        self.state.lock().await.set_term(term);
                         info!("Leader ID: {leader} was already elected in new term: {new_term}.");
                         break;
                     }
@@ -45,6 +47,7 @@ impl Cluster {
                 }
                 ElectionState::LeaderElected(leader_id) => {
                     let term = self.election_manager.get_current_term().await;
+                    self.state.lock().await.set_term(term);
                     info!("Election in term: {term} has completed, leader ID: {leader_id}.");
                     if leader_id == self_node.node.id {
                         self_node.set_state(ClusterNodeState::Leader).await;
@@ -78,6 +81,7 @@ impl Cluster {
                     }
 
                     info!("Election in term: {term} has completed, this node is a leader with ID: {}.", self_node.node.id);
+                    self.state.lock().await.set_term(term);
                     self_node.set_state(ClusterNodeState::Leader).await;
                     break;
                 }
@@ -111,6 +115,7 @@ impl Cluster {
 
         let mut streamer = self.streamer.lock().await;
         streamer.set_leader(leader_id);
+        self.state.lock().await.set_term(term);
     }
 
     pub async fn update_leader(&self, term: Term) -> Result<(), SystemError> {

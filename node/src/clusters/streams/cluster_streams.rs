@@ -16,6 +16,11 @@ impl Cluster {
         }
 
         self.streamer.lock().await.create_stream(stream_id).await;
+        self.state.lock().await.increase_commit_index();
+        self.state
+            .lock()
+            .await
+            .update_last_applied_to_commit_index();
         Ok(())
     }
 

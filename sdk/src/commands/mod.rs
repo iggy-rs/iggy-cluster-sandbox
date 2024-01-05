@@ -1,3 +1,4 @@
+mod append_entries;
 pub mod append_messages;
 pub mod command;
 pub mod create_stream;

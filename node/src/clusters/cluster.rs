@@ -1,5 +1,6 @@
 use crate::clusters::elections::election::ElectionManager;
 use crate::clusters::nodes::node::{Node, Resiliency};
+use crate::clusters::state::State;
 use crate::configs::config::{ClusterConfig, RequiredAcknowledgements};
 use crate::streaming::streamer::Streamer;
 use crate::types::NodeId;
@@ -33,6 +34,7 @@ pub struct Cluster {
     pub nodes: HashMap<u64, Rc<ClusterNode>>,
     pub streamer: Mutex<Streamer>,
     pub secret: String,
+    pub state: Mutex<State>,
     pub election_manager: ElectionManager,
     pub heartbeat_interval: Duration,
     pub required_acknowledgements: RequiredAcknowledgements,
@@ -122,6 +124,7 @@ impl Cluster {
                 ),
             ),
             nodes,
+            state: Mutex::new(State::new(0)),
             streamer: Mutex::new(streamer),
             secret: config.secret.to_string(),
             required_acknowledgements: config.required_acknowledgements,
