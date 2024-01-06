@@ -3,14 +3,20 @@ use crate::commands::command::Command;
 use crate::error::SystemError;
 use bytes::BufMut;
 
+pub const CREATE_STREAM_CODE: u32 = 31;
+
 #[derive(Debug)]
 pub struct CreateStream {
     pub id: u64,
 }
 
 impl CreateStream {
+    pub fn new(id: u64) -> CreateStream {
+        CreateStream { id }
+    }
+
     pub fn new_command(id: u64) -> Command {
-        Command::CreateStream(CreateStream { id })
+        Command::CreateStream(Self::new(id))
     }
 }
 

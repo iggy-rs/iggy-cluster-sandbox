@@ -6,12 +6,13 @@ use futures::lock::Mutex;
 use monoio::net::TcpStream;
 use monoio::time::sleep;
 use sdk::bytes_serializable::BytesSerializable;
+use sdk::commands::append_entries::AppendEntries;
 use sdk::commands::append_messages::AppendableMessage;
+use sdk::commands::create_stream::CreateStream;
 use sdk::commands::get_streams::GetStreams;
 use sdk::commands::heartbeat::Heartbeat;
 use sdk::commands::hello::Hello;
 use sdk::commands::request_vote::RequestVote;
-use sdk::commands::sync_created_stream::SyncCreatedStream;
 use sdk::commands::sync_messages::SyncMessages;
 use sdk::commands::update_leader::UpdateLeader;
 use sdk::error::SystemError;
@@ -287,7 +288,9 @@ impl NodeClient {
             "Sending a sync stream created to cluster node ID: {}, address: {} in term: {}...",
             self.id, self.address, term
         );
-        let command = SyncCreatedStream::new_command(term, stream_id);
+        let leader_id = self.leader_id.lock().await.unwrap();
+        let create_stream = CreateStream::new(stream_id);
+        let command = AppendEntries::from_create_stream(term, stream_id, leader_id, create_stream);
         if let Err(error) = self.send_request(&command).await {
             error!(
                 "Failed to send a sync stream created to cluster node ID: {}, address: {} in term: {}.",

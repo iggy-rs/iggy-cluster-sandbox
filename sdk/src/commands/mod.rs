@@ -1,4 +1,4 @@
-mod append_entries;
+pub mod append_entries;
 pub mod append_messages;
 pub mod command;
 pub mod create_stream;
@@ -9,6 +9,5 @@ pub mod hello;
 pub mod ping;
 pub mod poll_messages;
 pub mod request_vote;
-pub mod sync_created_stream;
 pub mod sync_messages;
 pub mod update_leader;
