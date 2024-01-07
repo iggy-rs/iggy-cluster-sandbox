@@ -838,6 +838,7 @@ dependencies = [
  "figment",
  "flume 0.11.0",
  "futures",
+ "log",
  "monoio",
  "rand",
  "sdk",

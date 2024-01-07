@@ -8,7 +8,6 @@ use monoio::time::sleep;
 use sdk::bytes_serializable::BytesSerializable;
 use sdk::commands::append_entries::AppendEntries;
 use sdk::commands::append_messages::AppendableMessage;
-use sdk::commands::create_stream::CreateStream;
 use sdk::commands::get_streams::GetStreams;
 use sdk::commands::heartbeat::Heartbeat;
 use sdk::commands::hello::Hello;
@@ -16,6 +15,7 @@ use sdk::commands::request_vote::RequestVote;
 use sdk::commands::sync_messages::SyncMessages;
 use sdk::commands::update_leader::UpdateLeader;
 use sdk::error::SystemError;
+use sdk::models::log_entry::LogEntry;
 use sdk::models::stream::Stream;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
@@ -283,23 +283,22 @@ impl NodeClient {
         Ok(streams)
     }
 
-    pub async fn sync_created_stream(&self, term: u64, stream_id: u64) -> Result<(), SystemError> {
+    pub async fn append_entry(&self, term: u64, log_entry: LogEntry) -> Result<(), SystemError> {
         info!(
-            "Sending a sync stream created to cluster node ID: {}, address: {} in term: {}...",
+            "Sending an append entry to cluster node ID: {}, address: {} in term: {}...",
             self.id, self.address, term
         );
         let leader_id = self.leader_id.lock().await.unwrap();
-        let create_stream = CreateStream::new(stream_id);
-        let command = AppendEntries::from_create_stream(term, stream_id, leader_id, create_stream);
+        let command = AppendEntries::new_command(term, leader_id, 0, vec![log_entry]);
         if let Err(error) = self.send_request(&command).await {
             error!(
-                "Failed to send a sync stream created to cluster node ID: {}, address: {} in term: {}.",
+                "Failed to send an append entry to cluster node ID: {}, address: {} in term: {}.",
                 self.id, self.address, term
             );
             return Err(error);
         }
         info!(
-            "Received a sync stream created response from cluster node ID: {}, address: {} in term: {}.",
+            "Received an append entry response from cluster node ID: {}, address: {} in term: {}.",
             self.id, self.address, term
         );
         Ok(())

@@ -2,7 +2,10 @@ use crate::clusters::cluster::Cluster;
 use crate::configs::config::RequiredAcknowledgements;
 use crate::connection::handler::ConnectionHandler;
 use crate::types::Term;
+use bytes::Bytes;
+use sdk::commands::create_stream::CreateStream;
 use sdk::error::SystemError;
+use sdk::models::log_entry::LogEntry;
 use tracing::{error, info};
 
 impl Cluster {
@@ -16,11 +19,6 @@ impl Cluster {
         }
 
         self.streamer.lock().await.create_stream(stream_id).await;
-        self.state.lock().await.increase_commit_index();
-        self.state
-            .lock()
-            .await
-            .update_last_applied_to_commit_index();
         Ok(())
     }
 
@@ -43,6 +41,15 @@ impl Cluster {
             return Err(SystemError::InvalidTerm(term));
         }
 
+        let log_entry;
+        {
+            let mut state = self.state.lock().await;
+            let create_stream = CreateStream::new_command(stream_id);
+            let bytes = Bytes::from(create_stream.as_bytes());
+            log_entry = state.append(bytes);
+            state.update_last_applied_to_commit_index();
+        }
+
         let majority_required =
             self.required_acknowledgements == RequiredAcknowledgements::Majority;
         if !majority_required {
@@ -55,7 +62,11 @@ impl Cluster {
                 continue;
             }
 
-            if let Err(error) = node.node.sync_created_stream(current_term, stream_id).await {
+            let append_entry = LogEntry {
+                index: log_entry.index,
+                data: log_entry.data.clone(),
+            };
+            if let Err(error) = node.node.append_entry(current_term, append_entry).await {
                 error!(
                     "Failed to sync created stream to cluster node with ID: {}, {error}",
                     node.node.id

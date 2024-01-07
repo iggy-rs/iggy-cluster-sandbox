@@ -5,6 +5,7 @@ use futures::lock::Mutex;
 use monoio::time::sleep;
 use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
+use sdk::models::log_entry::LogEntry;
 use sdk::models::stream::Stream;
 use std::time::Duration;
 use tracing::{error, info};
@@ -126,12 +127,12 @@ impl Node {
         self.client.get_streams().await
     }
 
-    pub async fn sync_created_stream(&self, term: u64, stream_id: u64) -> Result<(), SystemError> {
+    pub async fn append_entry(&self, term: u64, log_entry: LogEntry) -> Result<(), SystemError> {
         if self.is_self_node() {
             return Ok(());
         }
 
-        self.client.sync_created_stream(term, stream_id).await
+        self.client.append_entry(term, log_entry).await
     }
 
     pub async fn sync_messages(

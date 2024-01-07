@@ -24,6 +24,7 @@ sdk = { path = "../sdk" }
 rand = "0.8.5"
 config = { version = "0.13.4", features = [] }
 ulid = "1.1.0"
+log = "0.4.20"
 
 [[bin]]
 name = "iggy-node"

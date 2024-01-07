@@ -1,7 +1,7 @@
 use crate::bytes_serializable::BytesSerializable;
 use crate::commands::command::Command;
-use crate::commands::create_stream::{CreateStream, CREATE_STREAM_CODE};
 use crate::error::SystemError;
+use crate::models::log_entry::LogEntry;
 use bytes::BufMut;
 
 #[derive(Debug)]
@@ -14,19 +14,12 @@ pub struct AppendEntries {
     pub entries: Vec<LogEntry>,
 }
 
-#[derive(Debug)]
-pub struct LogEntry {
-    pub index: u64,
-    pub code: u32,
-    pub data: Vec<u8>,
-}
-
 impl AppendEntries {
-    pub fn from_create_stream(
+    pub fn new_command(
         term: u64,
         leader_id: u64,
         leader_commit: u64,
-        create_stream: CreateStream,
+        entries: Vec<LogEntry>,
     ) -> Command {
         Command::AppendEntries(AppendEntries {
             term,
@@ -34,32 +27,8 @@ impl AppendEntries {
             prev_log_index: 0,
             prev_log_term: 0,
             leader_commit,
-            entries: vec![LogEntry {
-                index: 0,
-                code: CREATE_STREAM_CODE,
-                data: create_stream.as_bytes(),
-            }],
+            entries,
         })
-    }
-}
-
-impl BytesSerializable for LogEntry {
-    fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(12 + self.data.len());
-        bytes.put_u64_le(self.index);
-        bytes.put_u32_le(self.code);
-        bytes.extend(&self.data);
-        bytes
-    }
-
-    fn from_bytes(bytes: &[u8]) -> Result<Self, SystemError>
-    where
-        Self: Sized,
-    {
-        let index = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
-        let code = u32::from_le_bytes(bytes[8..12].try_into().unwrap());
-        let data = bytes[12..].to_vec();
-        Ok(LogEntry { index, code, data })
     }
 }
 
@@ -89,7 +58,7 @@ impl BytesSerializable for AppendEntries {
         let mut position = 40;
         while position < bytes.len() {
             let entry = LogEntry::from_bytes(&bytes[position..])?;
-            position += 12 + entry.data.len();
+            position += 8 + entry.data.len();
             entries.push(entry);
         }
         Ok(AppendEntries {
