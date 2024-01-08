@@ -78,6 +78,7 @@ impl Cluster {
         self_node: SelfNode,
         config: &ClusterConfig,
         streamer: Streamer,
+        state: State,
     ) -> Result<Self, SystemError> {
         let mut nodes = HashMap::new();
         let self_node_id = self_node.id;
@@ -124,7 +125,7 @@ impl Cluster {
                 ),
             ),
             nodes,
-            state: Mutex::new(State::new(0)),
+            state: Mutex::new(state),
             streamer: Mutex::new(streamer),
             secret: config.secret.to_string(),
             required_acknowledgements: config.required_acknowledgements,

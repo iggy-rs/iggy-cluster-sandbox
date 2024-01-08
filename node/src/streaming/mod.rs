@@ -1,3 +1,3 @@
-mod file;
+pub mod file;
 mod stream;
 pub mod streamer;

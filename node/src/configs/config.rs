@@ -55,6 +55,7 @@ pub(crate) struct ClusterConfig {
     pub election_timeout_range_from: u64,
     pub election_timeout_range_to: u64,
     pub required_acknowledgements: RequiredAcknowledgements,
+    pub state_path: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -115,6 +116,7 @@ impl Default for ClusterConfig {
             election_timeout_range_from: 100,
             election_timeout_range_to: 300,
             required_acknowledgements: RequiredAcknowledgements::Majority,
+            state_path: "local_data/state".to_string(),
         }
     }
 }

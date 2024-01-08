@@ -283,13 +283,17 @@ impl NodeClient {
         Ok(streams)
     }
 
-    pub async fn append_entry(&self, term: u64, log_entry: LogEntry) -> Result<(), SystemError> {
+    pub async fn append_entries(
+        &self,
+        term: u64,
+        entries: Vec<LogEntry>,
+    ) -> Result<(), SystemError> {
         info!(
             "Sending an append entry to cluster node ID: {}, address: {} in term: {}...",
             self.id, self.address, term
         );
         let leader_id = self.leader_id.lock().await.unwrap();
-        let command = AppendEntries::new_command(term, leader_id, 0, vec![log_entry]);
+        let command = AppendEntries::new_command(term, leader_id, 0, entries);
         if let Err(error) = self.send_request(&command).await {
             error!(
                 "Failed to send an append entry to cluster node ID: {}, address: {} in term: {}.",

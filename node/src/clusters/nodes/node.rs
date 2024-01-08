@@ -127,12 +127,12 @@ impl Node {
         self.client.get_streams().await
     }
 
-    pub async fn append_entry(&self, term: u64, log_entry: LogEntry) -> Result<(), SystemError> {
+    pub async fn append_entry(&self, term: u64, entries: Vec<LogEntry>) -> Result<(), SystemError> {
         if self.is_self_node() {
             return Ok(());
         }
 
-        self.client.append_entry(term, log_entry).await
+        self.client.append_entries(term, entries).await
     }
 
     pub async fn sync_messages(

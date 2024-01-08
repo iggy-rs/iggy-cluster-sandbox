@@ -1,5 +1,6 @@
 use crate::clusters::cluster::{Cluster, SelfNode};
 use crate::clusters::heartbeats;
+use crate::clusters::state::State;
 use crate::configs::config_provider::FileConfigProvider;
 use crate::server::{public_server, sync_server};
 use crate::streaming::streamer::Streamer;
@@ -28,6 +29,8 @@ async fn main() -> Result<(), SystemError> {
     println!("{system_config}");
     let mut streamer = Streamer::new(system_config.node.id, &system_config.stream.path);
     streamer.init().await;
+    let mut state = State::new(0, &system_config.cluster.state_path);
+    state.init().await;
     let cluster = Cluster::new(
         SelfNode::new(
             system_config.node.id,
@@ -37,6 +40,7 @@ async fn main() -> Result<(), SystemError> {
         ),
         &system_config.cluster,
         streamer,
+        state,
     )?;
     let cluster = Rc::new(cluster);
     sync_server::start(&system_config.node.address, cluster.clone());

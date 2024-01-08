@@ -62,11 +62,11 @@ impl Cluster {
                 continue;
             }
 
-            let append_entry = LogEntry {
+            let entries = vec![LogEntry {
                 index: log_entry.index,
                 data: log_entry.data.clone(),
-            };
-            if let Err(error) = node.node.append_entry(current_term, append_entry).await {
+            }];
+            if let Err(error) = node.node.append_entry(current_term, entries).await {
                 error!(
                     "Failed to sync created stream to cluster node with ID: {}, {error}",
                     node.node.id
