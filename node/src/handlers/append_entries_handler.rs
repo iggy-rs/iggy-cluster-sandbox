@@ -37,6 +37,10 @@ pub(crate) async fn handle(
             }
         };
     }
+    let mut state = cluster.state.lock().await;
+    for entry in &command.entries {
+        state.append(entry.data.clone()).await;
+    }
     handler.send_empty_ok_response().await?;
     info!("Sent an append entries response.");
     Ok(())

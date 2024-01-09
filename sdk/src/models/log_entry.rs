@@ -1,11 +1,18 @@
 use crate::bytes_serializable::BytesSerializable;
 use crate::error::SystemError;
 use bytes::{BufMut, Bytes};
+use std::fmt::Display;
 
 #[derive(Debug)]
 pub struct LogEntry {
     pub index: u64,
     pub data: Bytes,
+}
+
+impl Display for LogEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(index: {}, data: {:?})", self.index, self.data)
+    }
 }
 
 impl BytesSerializable for LogEntry {

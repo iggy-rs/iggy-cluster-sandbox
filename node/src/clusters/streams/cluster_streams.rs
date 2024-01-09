@@ -46,7 +46,7 @@ impl Cluster {
             let mut state = self.state.lock().await;
             let create_stream = CreateStream::new_command(stream_id);
             let bytes = Bytes::from(create_stream.as_bytes());
-            log_entry = state.append(bytes);
+            log_entry = state.append(bytes).await;
             state.update_last_applied_to_commit_index();
         }
 
