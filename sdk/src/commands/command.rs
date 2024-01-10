@@ -109,6 +109,13 @@ fn to_bytes<T: BytesSerializable>(code: u32, command: &T) -> Vec<u8> {
     command
 }
 
+pub fn map_from_bytes(bytes: &[u8]) -> Result<Command, SystemError> {
+    let code = u32::from_le_bytes(bytes[..4].try_into()?);
+    let length = u32::from_le_bytes(bytes[4..8].try_into()?);
+    let payload = &bytes[8..8 + length as usize];
+    Command::from_bytes(code, payload)
+}
+
 impl Display for Command {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {

@@ -6,6 +6,7 @@ use crate::streaming::streamer::Streamer;
 use crate::types::NodeId;
 use futures::lock::Mutex;
 use sdk::error::SystemError;
+use sdk::models::log_entry::LogEntry;
 use sdk::models::message::Message;
 use sdk::models::metadata::{Metadata, NodeInfo, StreamInfo};
 use sdk::models::stream::Stream;
@@ -354,7 +355,7 @@ impl Cluster {
         }
 
         let streamer = self.streamer.lock().await;
-        let streams = streamer
+        let mut streams: Vec<Stream> = streamer
             .get_streams()
             .iter()
             .map(|stream| Stream {
@@ -362,6 +363,7 @@ impl Cluster {
                 offset: stream.current_offset,
             })
             .collect();
+        streams.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(streams)
     }
 
@@ -423,6 +425,14 @@ impl Cluster {
         }
 
         ClusterState::Healthy
+    }
+
+    pub async fn append_state(&self, entries: &[LogEntry]) -> Result<(), SystemError> {
+        let mut state = self.state.lock().await;
+        for entry in entries {
+            state.append(entry.data.clone()).await;
+        }
+        Ok(())
     }
 
     pub fn get_quorum_count(&self) -> u64 {
