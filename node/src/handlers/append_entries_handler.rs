@@ -27,7 +27,7 @@ pub(crate) async fn handle(
             }
         };
     }
-    cluster.append_state(&command.entries).await?;
+    cluster.sync_state(&command.entries).await?;
     handler.send_empty_ok_response().await?;
     info!("Sent an append entries response.");
     Ok(())

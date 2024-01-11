@@ -2,6 +2,7 @@ use crate::streaming::file;
 use crate::types::{Index, Term};
 use bytes::{BufMut, Bytes};
 use log::error;
+use sdk::error::SystemError;
 use sdk::models::log_entry::LogEntry;
 use std::fmt::Display;
 use std::fs::create_dir_all;
@@ -119,37 +120,45 @@ impl State {
         self.term = term;
     }
 
-    pub async fn append(&mut self, payload: Bytes) -> LogEntry {
+    pub async fn append(&mut self, payload: Bytes) -> Result<LogEntry, SystemError> {
         if self.commit_index > 0 || !self.entries.is_empty() {
             self.commit_index += 1;
         }
-        let result = LogEntry {
+        let entry = LogEntry {
             index: self.commit_index,
             data: payload.clone(),
         };
-        let entry = LogEntry {
+        self.sync(LogEntry {
             index: self.commit_index,
             data: payload,
-        };
-        self.entries.push(entry);
-        let file = file::append(&self.log_path).await.unwrap();
-        let size = 20 + result.data.len();
-        let mut bytes = Vec::with_capacity(size);
-        bytes.put_u64_le(result.index);
-        bytes.put_u64_le(self.term);
-        bytes.put_u32_le(result.data.len() as u32);
-        bytes.put_slice(&result.data);
-        let (write_result, _) = file.write_all_at(bytes, self.current_position).await;
-        if write_result.is_err() {
-            panic!("Failed to write to state file: {:?}", write_result.err());
-        }
+        })
+        .await?;
+        Ok(entry)
+    }
 
+    pub async fn sync(&mut self, entry: LogEntry) -> Result<(), SystemError> {
+        let file = file::append(&self.log_path).await.unwrap();
+        let size = 20 + entry.data.len();
+        let mut bytes = Vec::with_capacity(size);
+        bytes.put_u64_le(entry.index);
+        bytes.put_u64_le(self.term);
+        bytes.put_u32_le(entry.data.len() as u32);
+        bytes.put_slice(&entry.data);
+        if file
+            .write_all_at(bytes, self.current_position)
+            .await
+            .0
+            .is_err()
+        {
+            return Err(SystemError::CannotAppendToState);
+        }
         info!(
             "Appended entry at position: {}, size: {size}",
             self.current_position
         );
+        self.entries.push(entry);
         self.current_position += size as u64;
-        result
+        Ok(())
     }
 
     pub fn update_last_applied_to_commit_index(&mut self) {

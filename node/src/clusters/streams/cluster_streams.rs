@@ -43,11 +43,9 @@ impl Cluster {
 
         let log_entry;
         {
-            let mut state = self.state.lock().await;
             let create_stream = CreateStream::new_command(stream_id);
             let bytes = Bytes::from(create_stream.as_bytes());
-            log_entry = state.append(bytes).await;
-            state.update_last_applied_to_commit_index();
+            log_entry = self.append_state(bytes).await?;
         }
 
         let majority_required =

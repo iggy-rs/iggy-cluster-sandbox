@@ -4,6 +4,7 @@ use crate::clusters::state::State;
 use crate::configs::config::{ClusterConfig, RequiredAcknowledgements};
 use crate::streaming::streamer::Streamer;
 use crate::types::NodeId;
+use bytes::Bytes;
 use futures::lock::Mutex;
 use sdk::error::SystemError;
 use sdk::models::log_entry::LogEntry;
@@ -427,10 +428,22 @@ impl Cluster {
         ClusterState::Healthy
     }
 
-    pub async fn append_state(&self, entries: &[LogEntry]) -> Result<(), SystemError> {
+    pub async fn append_state(&self, payload: Bytes) -> Result<LogEntry, SystemError> {
+        let mut state = self.state.lock().await;
+        let log_entry = state.append(payload).await?;
+        state.update_last_applied_to_commit_index();
+        Ok(log_entry)
+    }
+
+    pub async fn sync_state(&self, entries: &[LogEntry]) -> Result<(), SystemError> {
         let mut state = self.state.lock().await;
         for entry in entries {
-            state.append(entry.data.clone()).await;
+            state
+                .sync(LogEntry {
+                    index: entry.index,
+                    data: entry.data.clone(),
+                })
+                .await?;
         }
         Ok(())
     }

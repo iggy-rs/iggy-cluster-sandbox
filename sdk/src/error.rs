@@ -68,6 +68,8 @@ pub enum SystemError {
     CannotSyncCreatedStream,
     #[error("Leader disconnected")]
     LeaderDisconnected,
+    #[error("Cannot append to state")]
+    CannotAppendToState,
 }
 
 impl SystemError {
@@ -105,6 +107,7 @@ impl SystemError {
             SystemError::CannotSyncAppendedMessages => 30,
             SystemError::CannotSyncCreatedStream => 31,
             SystemError::LeaderDisconnected => 32,
+            SystemError::CannotAppendToState => 33,
         }
     }
 }
