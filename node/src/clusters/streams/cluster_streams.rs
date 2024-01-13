@@ -41,11 +41,12 @@ impl Cluster {
             return Err(SystemError::InvalidTerm(term));
         }
 
+        let leader_commit;
         let log_entry;
         {
             let create_stream = CreateStream::new_command(stream_id);
             let bytes = Bytes::from(create_stream.as_bytes());
-            log_entry = self.append_state(bytes).await?;
+            (leader_commit, log_entry) = self.append_state(bytes).await?;
         }
 
         let majority_required =
@@ -64,9 +65,13 @@ impl Cluster {
                 index: log_entry.index,
                 data: log_entry.data.clone(),
             }];
-            if let Err(error) = node.node.append_entry(current_term, entries).await {
+            if let Err(error) = node
+                .node
+                .append_entry(current_term, leader_commit, entries)
+                .await
+            {
                 error!(
-                    "Failed to sync created stream to cluster node with ID: {}, {error}",
+                    "Failed to sync created stream with ID: {stream_id} to cluster node with ID: {}, {error}",
                     node.node.id
                 );
                 continue;
@@ -77,7 +82,7 @@ impl Cluster {
 
         let quorum = self.get_quorum_count();
         if synced_nodes >= quorum {
-            info!("Successfully synced created stream to quorum of nodes.");
+            info!("Successfully synced created stream with ID: {stream_id} to quorum of nodes.");
             if majority_required {
                 handler.send_empty_ok_response().await?;
             }
@@ -86,7 +91,7 @@ impl Cluster {
         }
 
         error!(
-            "Failed to sync created stream to quorum of nodes, synced nodes: {synced_nodes} < quorum: {quorum}, reverting stream creation...",
+            "Failed to sync created stream to with ID: {stream_id} quorum of nodes, synced nodes: {synced_nodes} < quorum: {quorum}, reverting stream creation...",
         );
         self.streamer.lock().await.delete_stream(stream_id).await;
 

@@ -1,6 +1,6 @@
 use crate::clusters::cluster::SelfNode;
 use crate::clusters::nodes::clients::node_client::NodeClient;
-use crate::types::{NodeId, Term};
+use crate::types::{Index, NodeId, Term};
 use futures::lock::Mutex;
 use monoio::time::sleep;
 use sdk::commands::append_messages::AppendableMessage;
@@ -127,12 +127,19 @@ impl Node {
         self.client.get_streams().await
     }
 
-    pub async fn append_entry(&self, term: u64, entries: Vec<LogEntry>) -> Result<(), SystemError> {
+    pub async fn append_entry(
+        &self,
+        term: Term,
+        leader_commit: Index,
+        entries: Vec<LogEntry>,
+    ) -> Result<(), SystemError> {
         if self.is_self_node() {
             return Ok(());
         }
 
-        self.client.append_entries(term, entries).await
+        self.client
+            .append_entries(term, leader_commit, entries)
+            .await
     }
 
     pub async fn sync_messages(

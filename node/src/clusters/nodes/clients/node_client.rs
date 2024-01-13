@@ -1,7 +1,7 @@
 use crate::clusters::cluster::SelfNode;
 use crate::clusters::nodes::node::Resiliency;
 use crate::connection::handler::ConnectionHandler;
-use crate::types::{NodeId, Term};
+use crate::types::{Index, NodeId, Term};
 use futures::lock::Mutex;
 use monoio::net::TcpStream;
 use monoio::time::sleep;
@@ -285,7 +285,8 @@ impl NodeClient {
 
     pub async fn append_entries(
         &self,
-        term: u64,
+        term: Term,
+        leader_commit: Index,
         entries: Vec<LogEntry>,
     ) -> Result<(), SystemError> {
         info!(
@@ -293,7 +294,7 @@ impl NodeClient {
             self.id, self.address, term
         );
         let leader_id = self.leader_id.lock().await.unwrap();
-        let command = AppendEntries::new_command(term, leader_id, 0, entries);
+        let command = AppendEntries::new_command(term, leader_id, leader_commit, entries);
         if let Err(error) = self.send_request(&command).await {
             error!(
                 "Failed to send an append entry to cluster node ID: {}, address: {} in term: {}.",

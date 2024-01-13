@@ -3,7 +3,7 @@ use crate::clusters::nodes::node::{Node, Resiliency};
 use crate::clusters::state::State;
 use crate::configs::config::{ClusterConfig, RequiredAcknowledgements};
 use crate::streaming::streamer::Streamer;
-use crate::types::NodeId;
+use crate::types::{Index, NodeId};
 use bytes::Bytes;
 use futures::lock::Mutex;
 use sdk::error::SystemError;
@@ -428,11 +428,11 @@ impl Cluster {
         ClusterState::Healthy
     }
 
-    pub async fn append_state(&self, payload: Bytes) -> Result<LogEntry, SystemError> {
+    pub async fn append_state(&self, payload: Bytes) -> Result<(Index, LogEntry), SystemError> {
         let mut state = self.state.lock().await;
         let log_entry = state.append(payload).await?;
         state.update_last_applied_to_commit_index();
-        Ok(log_entry)
+        Ok((state.last_applied, log_entry))
     }
 
     pub async fn sync_state(&self, entries: &[LogEntry]) -> Result<(), SystemError> {
