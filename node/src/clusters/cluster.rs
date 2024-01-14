@@ -435,8 +435,28 @@ impl Cluster {
         Ok((state.last_applied, log_entry))
     }
 
-    pub async fn sync_state(&self, entries: &[LogEntry]) -> Result<(), SystemError> {
+    pub async fn sync_state(
+        &self,
+        leader_commit: u64,
+        prev_log_index: u64,
+        entries: &[LogEntry],
+    ) -> Result<(), SystemError> {
         let mut state = self.state.lock().await;
+        if state.last_applied >= leader_commit {
+            error!(
+                "Invalid leader commit: {leader_commit}, last applied: {}",
+                state.last_applied
+            );
+            return Err(SystemError::InvalidLeaderCommit);
+        }
+        if state.last_applied != prev_log_index {
+            error!(
+                "Invalid previous log index: {prev_log_index}, last applied: {}",
+                state.last_applied
+            );
+            return Err(SystemError::InvalidPreviousLogIndex);
+        }
+
         for entry in entries {
             state
                 .sync(LogEntry {

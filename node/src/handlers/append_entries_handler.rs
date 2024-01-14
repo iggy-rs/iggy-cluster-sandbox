@@ -27,7 +27,13 @@ pub(crate) async fn handle(
             }
         };
     }
-    cluster.sync_state(&command.entries).await?;
+    cluster
+        .sync_state(
+            command.leader_commit,
+            command.prev_log_index,
+            &command.entries,
+        )
+        .await?;
     handler.send_empty_ok_response().await?;
     info!("Sent an append entries response.");
     Ok(())

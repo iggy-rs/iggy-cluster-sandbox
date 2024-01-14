@@ -70,6 +70,10 @@ pub enum SystemError {
     LeaderDisconnected,
     #[error("Cannot append to state")]
     CannotAppendToState,
+    #[error("Invalid leader commit")]
+    InvalidLeaderCommit,
+    #[error("Invalid previous log index")]
+    InvalidPreviousLogIndex,
 }
 
 impl SystemError {
@@ -108,6 +112,8 @@ impl SystemError {
             SystemError::CannotSyncCreatedStream => 31,
             SystemError::LeaderDisconnected => 32,
             SystemError::CannotAppendToState => 33,
+            SystemError::InvalidLeaderCommit => 34,
+            SystemError::InvalidPreviousLogIndex => 35,
         }
     }
 }
