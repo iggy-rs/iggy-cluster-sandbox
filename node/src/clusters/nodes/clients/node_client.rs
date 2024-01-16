@@ -287,6 +287,7 @@ impl NodeClient {
         &self,
         term: Term,
         leader_commit: Index,
+        prev_log_index: Index,
         entries: Vec<LogEntry>,
     ) -> Result<(), SystemError> {
         info!(
@@ -294,7 +295,8 @@ impl NodeClient {
             self.id, self.address, term
         );
         let leader_id = self.leader_id.lock().await.unwrap();
-        let command = AppendEntries::new_command(term, leader_id, leader_commit, entries);
+        let command =
+            AppendEntries::new_command(term, leader_id, leader_commit, prev_log_index, entries);
         if let Err(error) = self.send_request(&command).await {
             error!(
                 "Failed to send an append entry to cluster node ID: {}, address: {} in term: {}.",

@@ -428,20 +428,27 @@ impl Cluster {
         ClusterState::Healthy
     }
 
-    pub async fn append_state(&self, payload: Bytes) -> Result<(Index, LogEntry), SystemError> {
+    pub async fn append_state(
+        &self,
+        payload: Bytes,
+    ) -> Result<(Index, Index, LogEntry), SystemError> {
         let mut state = self.state.lock().await;
         let log_entry = state.append(payload).await?;
+        let prev_log_index = state.last_applied;
         state.update_last_applied_to_commit_index();
-        Ok((state.last_applied, log_entry))
+        Ok((state.last_applied, prev_log_index, log_entry))
     }
 
-    pub async fn sync_state(
+    pub async fn can_sync_state(
         &self,
         leader_commit: u64,
         prev_log_index: u64,
-        entries: &[LogEntry],
     ) -> Result<(), SystemError> {
-        let mut state = self.state.lock().await;
+        let state = self.state.lock().await;
+        if state.last_applied == 0 {
+            return Ok(());
+        }
+
         if state.last_applied >= leader_commit {
             error!(
                 "Invalid leader commit: {leader_commit}, last applied: {}",
@@ -456,15 +463,17 @@ impl Cluster {
             );
             return Err(SystemError::InvalidPreviousLogIndex);
         }
+        Ok(())
+    }
 
-        for entry in entries {
-            state
-                .sync(LogEntry {
-                    index: entry.index,
-                    data: entry.data.clone(),
-                })
-                .await?;
-        }
+    pub async fn append_entry(&self, entry: &LogEntry) -> Result<(), SystemError> {
+        let mut state = self.state.lock().await;
+        state
+            .sync(LogEntry {
+                index: entry.index,
+                data: entry.data.clone(),
+            })
+            .await?;
         Ok(())
     }
 

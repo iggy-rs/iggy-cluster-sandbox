@@ -105,10 +105,12 @@ impl State {
             let data = Bytes::from(data);
             position += data_length as u64;
             let entry = LogEntry { index, data };
+            self.commit_index = index;
             self.entries.push(entry);
         }
 
         self.current_position = position;
+        self.last_applied = self.commit_index;
         info!(
             "Initialized state for {} entries. {}",
             self.entries.len(),

@@ -131,6 +131,7 @@ impl Node {
         &self,
         term: Term,
         leader_commit: Index,
+        prev_log_index: Index,
         entries: Vec<LogEntry>,
     ) -> Result<(), SystemError> {
         if self.is_self_node() {
@@ -138,7 +139,7 @@ impl Node {
         }
 
         self.client
-            .append_entries(term, leader_commit, entries)
+            .append_entries(term, leader_commit, prev_log_index, entries)
             .await
     }
 

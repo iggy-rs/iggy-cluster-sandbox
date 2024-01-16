@@ -19,12 +19,13 @@ impl AppendEntries {
         term: u64,
         leader_id: u64,
         leader_commit: u64,
+        prev_log_index: u64,
         entries: Vec<LogEntry>,
     ) -> Command {
         Command::AppendEntries(AppendEntries {
             term,
             leader_id,
-            prev_log_index: 0,
+            prev_log_index,
             prev_log_term: 0,
             leader_commit,
             entries,

@@ -42,11 +42,12 @@ impl Cluster {
         }
 
         let leader_commit;
+        let prev_log_index;
         let log_entry;
         {
             let create_stream = CreateStream::new_command(stream_id);
             let bytes = Bytes::from(create_stream.as_bytes());
-            (leader_commit, log_entry) = self.append_state(bytes).await?;
+            (leader_commit, prev_log_index, log_entry) = self.append_state(bytes).await?;
         }
 
         let majority_required =
@@ -67,7 +68,7 @@ impl Cluster {
             }];
             if let Err(error) = node
                 .node
-                .append_entry(current_term, leader_commit, entries)
+                .append_entry(current_term, leader_commit, prev_log_index, entries)
                 .await
             {
                 error!(
