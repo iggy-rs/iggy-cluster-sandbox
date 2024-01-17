@@ -2,6 +2,7 @@ use crate::bytes_serializable::BytesSerializable;
 use crate::commands::append_entries::AppendEntries;
 use crate::commands::append_messages::AppendMessages;
 use crate::commands::create_stream::{CreateStream, CREATE_STREAM_CODE};
+use crate::commands::delete_stream::{DeleteStream, DELETE_STREAM_CODE};
 use crate::commands::get_metadata::GetMetadata;
 use crate::commands::get_streams::GetStreams;
 use crate::commands::heartbeat::Heartbeat;
@@ -37,6 +38,7 @@ pub enum Command {
     GetMetadata(GetMetadata),
     GetStreams(GetStreams),
     CreateStream(CreateStream),
+    DeleteStream(DeleteStream),
     AppendMessages(AppendMessages),
     PollMessages(PollMessages),
     SyncMessages(SyncMessages),
@@ -54,6 +56,7 @@ impl Command {
             Command::GetMetadata(_) => "get_metadata",
             Command::GetStreams(_) => "get_streams",
             Command::CreateStream(_) => "create_stream",
+            Command::DeleteStream(_) => "delete_stream",
             Command::AppendMessages(_) => "append_messages",
             Command::PollMessages(_) => "poll_messages",
             Command::SyncMessages(_) => "sync_messages",
@@ -71,6 +74,7 @@ impl Command {
             Command::GetMetadata(command) => to_bytes(GET_METADATA_CODE, command),
             Command::GetStreams(command) => to_bytes(GET_STREAMS_CODE, command),
             Command::CreateStream(command) => to_bytes(CREATE_STREAM_CODE, command),
+            Command::DeleteStream(command) => to_bytes(CREATE_STREAM_CODE, command),
             Command::AppendMessages(command) => to_bytes(APPEND_MESSAGES_CODE, command),
             Command::PollMessages(command) => to_bytes(POLL_MESSAGES_CODE, command),
             Command::SyncMessages(command) => to_bytes(SYNC_MESSAGES_CODE, command),
@@ -91,6 +95,7 @@ impl Command {
             GET_METADATA_CODE => Ok(Command::GetMetadata(GetMetadata::from_bytes(bytes)?)),
             GET_STREAMS_CODE => Ok(Command::GetStreams(GetStreams::from_bytes(bytes)?)),
             CREATE_STREAM_CODE => Ok(Command::CreateStream(CreateStream::from_bytes(bytes)?)),
+            DELETE_STREAM_CODE => Ok(Command::DeleteStream(DeleteStream::from_bytes(bytes)?)),
             APPEND_MESSAGES_CODE => Ok(Command::AppendMessages(AppendMessages::from_bytes(bytes)?)),
             POLL_MESSAGES_CODE => Ok(Command::PollMessages(PollMessages::from_bytes(bytes)?)),
             SYNC_MESSAGES_CODE => Ok(Command::SyncMessages(SyncMessages::from_bytes(bytes)?)),
@@ -132,6 +137,9 @@ impl Display for Command {
             Command::GetStreams(_) => write!(f, "Get streams"),
             Command::CreateStream(create_stream) => {
                 write!(f, "Create stream: {}", create_stream.id)
+            }
+            Command::DeleteStream(delete_stream) => {
+                write!(f, "Delete stream: {}", delete_stream.id)
             }
             Command::AppendMessages(append_data) => {
                 write!(f, "Append messages: {:?}", append_data.messages)

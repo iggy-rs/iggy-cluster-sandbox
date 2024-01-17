@@ -3,6 +3,7 @@ use crate::clients::node_client::NodeClient;
 use crate::commands::append_messages::{AppendMessages, AppendableMessage};
 use crate::commands::command::Command;
 use crate::commands::create_stream::CreateStream;
+use crate::commands::delete_stream::DeleteStream;
 use crate::commands::get_metadata::GetMetadata;
 use crate::commands::get_streams::GetStreams;
 use crate::commands::ping::Ping;
@@ -150,6 +151,13 @@ impl ClusterClient {
     pub async fn create_stream(&self, stream_id: u64) -> Result<(), SystemError> {
         let leader_address = self.get_leader_address().await?;
         let command = CreateStream::new_command(stream_id);
+        self.send(&command, &leader_address).await?;
+        Ok(())
+    }
+
+    pub async fn delete_stream(&self, stream_id: u64) -> Result<(), SystemError> {
+        let leader_address = self.get_leader_address().await?;
+        let command = DeleteStream::new_command(stream_id);
         self.send(&command, &leader_address).await?;
         Ok(())
     }

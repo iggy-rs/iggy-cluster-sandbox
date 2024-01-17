@@ -22,6 +22,19 @@ impl Cluster {
         Ok(())
     }
 
+    pub async fn delete_stream(&self, term: Term, stream_id: u64) -> Result<(), SystemError> {
+        let current_term = self.election_manager.get_current_term().await;
+        if current_term != term {
+            error!(
+                "Failed to delete stream, term: {term} is not equal to current term: {current_term}.",
+            );
+            return Err(SystemError::InvalidTerm(term));
+        }
+
+        self.streamer.lock().await.delete_stream(stream_id).await;
+        Ok(())
+    }
+
     pub async fn sync_created_stream(
         &self,
         handler: &mut ConnectionHandler,

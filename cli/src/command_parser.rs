@@ -2,6 +2,7 @@ use bytes::Bytes;
 use sdk::commands::append_messages::{AppendMessages, AppendableMessage};
 use sdk::commands::command::Command;
 use sdk::commands::create_stream::CreateStream;
+use sdk::commands::delete_stream::DeleteStream;
 use sdk::commands::get_metadata::GetMetadata;
 use sdk::commands::get_streams::GetStreams;
 use sdk::commands::ping::Ping;
@@ -13,8 +14,9 @@ pub(crate) fn parse(input: &str) -> Option<Command> {
     match command {
         "metadata" => Some(GetMetadata::new_command()),
         "ping" => Some(Ping::new_command()),
-        "streams" => Some(GetStreams::new_command()),
-        "stream" => parse_create_stream(parts.get(1).unwrap_or(&"")),
+        "get_streams" => Some(GetStreams::new_command()),
+        "create_stream" => parse_create_stream(parts.get(1).unwrap_or(&"")),
+        "delete_stream" => parse_delete_stream(parts.get(1).unwrap_or(&"")),
         "append" => parse_append_messages(parts.get(1).unwrap_or(&"")),
         "poll" => parse_poll_messages(parts.get(1).unwrap_or(&"")),
         _ => None,
@@ -24,6 +26,11 @@ pub(crate) fn parse(input: &str) -> Option<Command> {
 fn parse_create_stream(input: &str) -> Option<Command> {
     let id = input.parse::<u64>().unwrap();
     Some(CreateStream::new_command(id))
+}
+
+fn parse_delete_stream(input: &str) -> Option<Command> {
+    let id = input.parse::<u64>().unwrap();
+    Some(DeleteStream::new_command(id))
 }
 
 fn parse_append_messages(input: &str) -> Option<Command> {

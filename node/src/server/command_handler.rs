@@ -39,6 +39,9 @@ pub async fn handle(
         Command::CreateStream(command) => {
             create_stream_handler::handle(handler, command, cluster).await?;
         }
+        Command::DeleteStream(command) => {
+            delete_stream_handler::handle(handler, command, cluster).await?;
+        }
         Command::AppendMessages(command) => {
             append_messages_handler::handle(handler, command, cluster).await?;
         }
