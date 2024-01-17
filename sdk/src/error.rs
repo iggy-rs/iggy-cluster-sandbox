@@ -74,6 +74,8 @@ pub enum SystemError {
     InvalidLeaderCommit,
     #[error("Invalid previous log index")]
     InvalidPreviousLogIndex,
+    #[error("Cannot sync deleted stream")]
+    CannotSyncDeletedStream,
 }
 
 impl SystemError {
@@ -114,6 +116,7 @@ impl SystemError {
             SystemError::CannotAppendToState => 33,
             SystemError::InvalidLeaderCommit => 34,
             SystemError::InvalidPreviousLogIndex => 35,
+            SystemError::CannotSyncDeletedStream => 36,
         }
     }
 }

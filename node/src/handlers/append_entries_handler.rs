@@ -3,6 +3,7 @@ use crate::connection::handler::ConnectionHandler;
 use log::warn;
 use sdk::commands::append_entries::AppendEntries;
 use sdk::commands::command;
+use sdk::commands::command::Command;
 use sdk::error::SystemError;
 use std::rc::Rc;
 use tracing::info;
@@ -20,9 +21,14 @@ pub(crate) async fn handle(
     for entry in &command.entries {
         cluster.append_entry(entry).await?;
         match command::map_from_bytes(&entry.data)? {
-            command::Command::CreateStream(create_stream) => {
+            Command::CreateStream(create_stream) => {
                 cluster
                     .create_stream(command.term, create_stream.id)
+                    .await?;
+            }
+            Command::DeleteStream(delete_stream) => {
+                cluster
+                    .delete_stream(command.term, delete_stream.id)
                     .await?;
             }
             other => {

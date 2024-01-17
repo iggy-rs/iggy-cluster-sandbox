@@ -74,7 +74,7 @@ impl Command {
             Command::GetMetadata(command) => to_bytes(GET_METADATA_CODE, command),
             Command::GetStreams(command) => to_bytes(GET_STREAMS_CODE, command),
             Command::CreateStream(command) => to_bytes(CREATE_STREAM_CODE, command),
-            Command::DeleteStream(command) => to_bytes(CREATE_STREAM_CODE, command),
+            Command::DeleteStream(command) => to_bytes(DELETE_STREAM_CODE, command),
             Command::AppendMessages(command) => to_bytes(APPEND_MESSAGES_CODE, command),
             Command::PollMessages(command) => to_bytes(POLL_MESSAGES_CODE, command),
             Command::SyncMessages(command) => to_bytes(SYNC_MESSAGES_CODE, command),
