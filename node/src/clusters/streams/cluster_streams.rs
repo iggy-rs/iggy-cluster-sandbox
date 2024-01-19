@@ -1,12 +1,9 @@
 use crate::clusters::cluster::Cluster;
-use crate::configs::config::RequiredAcknowledgements;
 use crate::connection::handler::ConnectionHandler;
 use crate::types::Term;
-use bytes::Bytes;
 use sdk::commands::create_stream::CreateStream;
 use sdk::commands::delete_stream::DeleteStream;
 use sdk::error::SystemError;
-use sdk::models::log_entry::LogEntry;
 use tracing::{error, info};
 
 impl Cluster {
@@ -42,79 +39,17 @@ impl Cluster {
         term: Term,
         stream_id: u64,
     ) -> Result<(), SystemError> {
-        if !self.is_leader().await {
-            handler.send_empty_ok_response().await?;
-            return Ok(());
-        }
-
-        let current_term = self.election_manager.get_current_term().await;
-        if current_term != term {
-            error!(
-                "Failed to sync created stream, term: {term} is not equal to current term: {current_term}.",
-            );
-            return Err(SystemError::InvalidTerm(term));
-        }
-
-        let leader_commit;
-        let prev_log_index;
-        let log_entry;
+        info!("Syncing created stream with ID: {stream_id} to quorum of nodes.");
+        if let Err(error) = self
+            .sync_state(handler, term, CreateStream::new_command(stream_id))
+            .await
         {
-            let create_stream = CreateStream::new_command(stream_id);
-            let bytes = Bytes::from(create_stream.as_bytes());
-            (leader_commit, prev_log_index, log_entry) = self.append_state(bytes).await?;
+            error!("Failed to sync created stream with ID: {stream_id}, {error}",);
+            self.streamer.lock().await.delete_stream(stream_id).await;
+            return Err(SystemError::CannotSyncCreatedStream);
         }
-
-        let majority_required =
-            self.required_acknowledgements == RequiredAcknowledgements::Majority;
-        if !majority_required {
-            handler.send_empty_ok_response().await?;
-        }
-
-        let mut synced_nodes = 1;
-        for node in self.nodes.values() {
-            if node.node.is_self_node() {
-                continue;
-            }
-
-            let entries = vec![LogEntry {
-                index: log_entry.index,
-                data: log_entry.data.clone(),
-            }];
-            if let Err(error) = node
-                .node
-                .append_entry(current_term, leader_commit, prev_log_index, entries)
-                .await
-            {
-                error!(
-                    "Failed to sync created stream with ID: {stream_id} to cluster node with ID: {}, {error}",
-                    node.node.id
-                );
-                continue;
-            }
-
-            synced_nodes += 1;
-        }
-
-        let quorum = self.get_quorum_count();
-        if synced_nodes >= quorum {
-            info!("Successfully synced created stream with ID: {stream_id} to quorum of nodes.");
-            if majority_required {
-                handler.send_empty_ok_response().await?;
-            }
-
-            return Ok(());
-        }
-
-        error!(
-            "Failed to sync created stream to with ID: {stream_id} quorum of nodes, synced nodes: {synced_nodes} < quorum: {quorum}, reverting stream creation...",
-        );
-        self.streamer.lock().await.delete_stream(stream_id).await;
-
-        if !majority_required {
-            return Ok(());
-        }
-
-        Err(SystemError::CannotSyncCreatedStream)
+        info!("Successfully synced created stream with ID: {stream_id} to quorum of nodes.");
+        Ok(())
     }
 
     pub async fn sync_deleted_stream(
@@ -123,78 +58,17 @@ impl Cluster {
         term: Term,
         stream_id: u64,
     ) -> Result<(), SystemError> {
-        if !self.is_leader().await {
-            handler.send_empty_ok_response().await?;
-            return Ok(());
-        }
-
-        let current_term = self.election_manager.get_current_term().await;
-        if current_term != term {
-            error!(
-                "Failed to sync deleted stream, term: {term} is not equal to current term: {current_term}.",
-            );
-            return Err(SystemError::InvalidTerm(term));
-        }
-
-        let leader_commit;
-        let prev_log_index;
-        let log_entry;
+        info!("Syncing deleted stream with ID: {stream_id} to quorum of nodes.");
+        if let Err(error) = self
+            .sync_state(handler, term, DeleteStream::new_command(stream_id))
+            .await
         {
-            let create_stream = DeleteStream::new_command(stream_id);
-            let bytes = Bytes::from(create_stream.as_bytes());
-            (leader_commit, prev_log_index, log_entry) = self.append_state(bytes).await?;
+            error!("Failed to sync deleted stream with ID: {stream_id}, {error}",);
+            self.streamer.lock().await.delete_stream(stream_id).await;
+            return Err(SystemError::CannotSyncDeletedStream);
         }
-
-        let majority_required =
-            self.required_acknowledgements == RequiredAcknowledgements::Majority;
-        if !majority_required {
-            handler.send_empty_ok_response().await?;
-        }
-
-        let mut synced_nodes = 1;
-        for node in self.nodes.values() {
-            if node.node.is_self_node() {
-                continue;
-            }
-
-            let entries = vec![LogEntry {
-                index: log_entry.index,
-                data: log_entry.data.clone(),
-            }];
-            if let Err(error) = node
-                .node
-                .append_entry(current_term, leader_commit, prev_log_index, entries)
-                .await
-            {
-                error!(
-                    "Failed to sync deleted stream with ID: {stream_id} to cluster node with ID: {}, {error}",
-                    node.node.id
-                );
-                continue;
-            }
-
-            synced_nodes += 1;
-        }
-
-        let quorum = self.get_quorum_count();
-        if synced_nodes >= quorum {
-            info!("Successfully synced deleted stream with ID: {stream_id} to quorum of nodes.");
-            if majority_required {
-                handler.send_empty_ok_response().await?;
-            }
-
-            return Ok(());
-        }
-
-        error!(
-            "Failed to sync deleted stream to with ID: {stream_id} quorum of nodes, synced nodes: {synced_nodes} < quorum: {quorum}, reverting stream creation...",
-        );
-
-        if !majority_required {
-            return Ok(());
-        }
-
-        Err(SystemError::CannotSyncDeletedStream)
+        info!("Successfully synced deleted stream with ID: {stream_id} to quorum of nodes.");
+        Ok(())
     }
 
     pub async fn sync_streams_from_other_nodes(&self) -> Result<(), SystemError> {
