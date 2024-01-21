@@ -14,6 +14,7 @@ pub struct State {
     pub term: Term,
     pub commit_index: Index,
     pub last_applied: Index,
+    pub high_water_mark: Index,
     pub entries: Vec<LogEntry>,
     current_position: u64,
     directory_path: String,
@@ -28,8 +29,8 @@ impl Display for State {
         }
         write!(
             f,
-            "term: {}, commit_index: {}, last_applied: {}, entries: {}",
-            self.term, self.commit_index, self.last_applied, entries
+            "term: {}, commit_index: {}, last_applied: {}, high_water_mark: {}, entries: {}",
+            self.term, self.commit_index, self.last_applied, self.high_water_mark, entries
         )
     }
 }
@@ -40,6 +41,7 @@ impl State {
             term,
             commit_index: 0,
             last_applied: 0,
+            high_water_mark: 0,
             current_position: 0,
             entries: vec![],
             directory_path: path.to_string(),
@@ -165,5 +167,9 @@ impl State {
 
     pub fn update_last_applied_to_commit_index(&mut self) {
         self.last_applied = self.commit_index;
+    }
+
+    pub fn set_high_water_mark(&mut self, high_water_mark: Index) {
+        self.high_water_mark = high_water_mark;
     }
 }

@@ -147,13 +147,16 @@ impl Node {
         &self,
         term: u64,
         stream_id: u64,
+        current_offset: u64,
         messages: &[AppendableMessage],
     ) -> Result<(), SystemError> {
         if self.is_self_node() {
             return Ok(());
         }
 
-        self.client.sync_messages(term, stream_id, messages).await
+        self.client
+            .sync_messages(term, stream_id, current_offset, messages)
+            .await
     }
 
     pub async fn disconnect(&self) -> Result<(), SystemError> {

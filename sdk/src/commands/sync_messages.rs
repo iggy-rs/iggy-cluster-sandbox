@@ -8,14 +8,21 @@ use bytes::BufMut;
 pub struct SyncMessages {
     pub term: u64,
     pub stream_id: u64,
+    pub offset: u64,
     pub messages: Vec<AppendableMessage>,
 }
 
 impl SyncMessages {
-    pub fn new_command(term: u64, stream_id: u64, messages: Vec<AppendableMessage>) -> Command {
+    pub fn new_command(
+        term: u64,
+        stream_id: u64,
+        offset: u64,
+        messages: Vec<AppendableMessage>,
+    ) -> Command {
         Command::SyncMessages(SyncMessages {
             term,
             stream_id,
+            offset,
             messages,
         })
     }
@@ -26,6 +33,7 @@ impl BytesSerializable for SyncMessages {
         let mut bytes = Vec::new();
         bytes.put_u64_le(self.term);
         bytes.put_u64_le(self.stream_id);
+        bytes.put_u64_le(self.offset);
         for message in &self.messages {
             bytes.extend(&message.as_bytes());
         }
@@ -39,7 +47,8 @@ impl BytesSerializable for SyncMessages {
 
         let term = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
         let stream_id = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
-        let payload = &bytes[16..];
+        let offset = u64::from_le_bytes(bytes[16..24].try_into().unwrap());
+        let payload = &bytes[24..];
         let mut messages = Vec::new();
         let mut position = 0;
         while position < payload.len() {
@@ -51,6 +60,7 @@ impl BytesSerializable for SyncMessages {
         Ok(SyncMessages {
             term,
             stream_id,
+            offset,
             messages,
         })
     }

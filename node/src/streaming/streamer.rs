@@ -24,6 +24,10 @@ impl Streamer {
         }
     }
 
+    pub fn get_stream(&self, id: u64) -> Option<&Stream> {
+        self.streams.get(&id)
+    }
+
     pub fn get_streams(&self) -> Vec<&Stream> {
         self.streams.values().collect::<Vec<&Stream>>()
     }

@@ -315,6 +315,7 @@ impl NodeClient {
         &self,
         term: u64,
         stream_id: u64,
+        current_offset: u64,
         messages: &[AppendableMessage],
     ) -> Result<(), SystemError> {
         info!(
@@ -329,7 +330,7 @@ impl NodeClient {
             });
         }
 
-        let command = SyncMessages::new_command(term, stream_id, synced_messages);
+        let command = SyncMessages::new_command(term, stream_id, current_offset, synced_messages);
         if let Err(error) = self.send_request(&command).await {
             error!(
                 "Failed to send a sync messages to cluster node ID: {}, address: {} in term: {}.",

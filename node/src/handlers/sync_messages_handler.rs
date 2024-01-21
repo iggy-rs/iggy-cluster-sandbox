@@ -18,6 +18,7 @@ pub(crate) async fn handle(
     cluster
         .append_messages(command.term, command.stream_id, &command.messages)
         .await?;
+    cluster.set_high_watermark(command.offset).await?;
     handler.send_empty_ok_response().await?;
     info!("Sent a sync messages response.");
     Ok(())

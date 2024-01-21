@@ -37,6 +37,13 @@ impl Cluster {
             return Ok(());
         }
 
+        let current_offset = self
+            .streamer
+            .lock()
+            .await
+            .get_stream(stream_id)
+            .unwrap()
+            .current_offset;
         let current_term = self.election_manager.get_current_term().await;
         if current_term != term {
             error!(
@@ -59,7 +66,7 @@ impl Cluster {
 
             if let Err(error) = node
                 .node
-                .sync_messages(current_term, stream_id, messages)
+                .sync_messages(current_term, stream_id, current_offset, messages)
                 .await
             {
                 error!(
@@ -79,6 +86,7 @@ impl Cluster {
                 handler.send_empty_ok_response().await?;
             }
 
+            self.state.lock().await.set_high_water_mark(current_offset);
             return Ok(());
         }
 
