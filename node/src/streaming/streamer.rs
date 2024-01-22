@@ -107,6 +107,16 @@ impl Streamer {
         stream.append_messages(messages).await
     }
 
+    pub async fn commit_messages(&mut self, stream_id: u64) -> Result<u64, SystemError> {
+        let stream = self.streams.get_mut(&stream_id);
+        if stream.is_none() {
+            return Err(SystemError::InvalidStreamId);
+        }
+
+        let stream = stream.unwrap();
+        stream.commit_messages().await
+    }
+
     pub(crate) fn poll_messages(
         &self,
         stream_id: u64,

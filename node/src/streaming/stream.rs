@@ -19,6 +19,7 @@ pub(crate) struct Stream {
     pub directory_path: String,
     pub log_path: String,
     pub messages: Vec<Message>,
+    pub uncommitted_messages: Vec<Message>,
     pub current_offset: u64,
     pub current_position: u64,
     pub current_id: u64,
@@ -45,6 +46,7 @@ impl Stream {
             log_path: format!("{directory_path}/{LOG_FILE}"),
             directory_path,
             messages: Vec::new(),
+            uncommitted_messages: Vec::new(),
             current_offset: 0,
             current_position: 0,
             current_id: 0,
@@ -100,7 +102,7 @@ impl Stream {
         messages: &[AppendableMessage],
     ) -> Result<(), SystemError> {
         for message_to_append in messages {
-            if !self.messages.is_empty() {
+            if !self.messages.is_empty() || !self.uncommitted_messages.is_empty() {
                 self.current_offset += 1;
             }
 
@@ -115,9 +117,16 @@ impl Stream {
                 self.current_id,
                 message_to_append.payload.clone(),
             );
+            self.uncommitted_messages.push(message);
+        }
+
+        Ok(())
+    }
+
+    pub async fn commit_messages(&mut self) -> Result<u64, SystemError> {
+        for message in &self.uncommitted_messages {
             let size = message.get_size();
             let bytes = message.as_bytes();
-            self.messages.push(message);
             let file = file::append(&self.log_path)
                 .await
                 .unwrap_or_else(|_| panic!("Failed to open stream file: {}", &self.log_path));
@@ -138,9 +147,11 @@ impl Stream {
                 "Appended message to stream file: {} at offset: {}, position: {}",
                 &self.log_path, self.current_offset, self.current_position
             );
-        }
 
-        Ok(())
+            self.messages.push(message.clone());
+        }
+        self.uncommitted_messages.clear();
+        Ok(self.current_offset)
     }
 
     pub fn poll_messages(&self, offset: u64, count: u64) -> Result<&[Message], SystemError> {
@@ -259,6 +270,7 @@ mod tests {
             },
         ];
         let result = stream.append_messages(&messages).await;
+        stream.commit_messages().await.unwrap();
 
         assert!(result.is_ok());
         let polled_messages = stream.poll_messages(0, 1000);

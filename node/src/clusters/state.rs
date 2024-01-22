@@ -1,13 +1,12 @@
 use crate::streaming::file;
 use crate::types::{Index, Term};
 use bytes::{BufMut, Bytes};
-use log::error;
 use sdk::error::SystemError;
 use sdk::models::log_entry::LogEntry;
 use std::fmt::Display;
 use std::fs::create_dir_all;
 use std::path::Path;
-use tracing::info;
+use tracing::{error, info};
 
 #[derive(Debug)]
 pub struct State {

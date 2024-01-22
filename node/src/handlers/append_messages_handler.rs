@@ -3,6 +3,7 @@ use crate::connection::handler::ConnectionHandler;
 use sdk::commands::append_messages::AppendMessages;
 use sdk::error::SystemError;
 use std::rc::Rc;
+use tracing::error;
 
 pub(crate) async fn handle(
     handler: &mut ConnectionHandler,
@@ -17,5 +18,18 @@ pub(crate) async fn handle(
         .await?;
     cluster
         .sync_appended_messages(handler, term, command.stream_id, &command.messages)
-        .await
+        .await?;
+    let offset = cluster.commit_messages(term, command.stream_id).await;
+    if offset.is_err() {
+        let error = offset.err().unwrap();
+        error!("Failed to commit messages: {error}");
+        return Ok(());
+    }
+
+    let offset = offset.unwrap();
+    if let Err(error) = cluster.set_high_watermark(offset).await {
+        error!("Failed to set high watermark: {error}");
+    }
+
+    Ok(())
 }

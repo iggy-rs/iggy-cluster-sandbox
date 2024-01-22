@@ -25,6 +25,19 @@ impl Cluster {
         streamer.append_messages(stream_id, messages).await
     }
 
+    pub async fn commit_messages(&self, term: Term, stream_id: u64) -> Result<u64, SystemError> {
+        let current_term = self.election_manager.get_current_term().await;
+        if current_term != term {
+            error!(
+                "Failed to commit messages, term: {term} is not equal to current term: {current_term}.",
+            );
+            return Err(SystemError::InvalidTerm(term));
+        }
+
+        let mut streamer = self.streamer.lock().await;
+        streamer.commit_messages(stream_id).await
+    }
+
     pub async fn sync_appended_messages(
         &self,
         handler: &mut ConnectionHandler,

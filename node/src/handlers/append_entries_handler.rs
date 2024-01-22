@@ -1,12 +1,11 @@
 use crate::clusters::cluster::Cluster;
 use crate::connection::handler::ConnectionHandler;
-use log::warn;
 use sdk::commands::append_entries::AppendEntries;
 use sdk::commands::command;
 use sdk::commands::command::Command;
 use sdk::error::SystemError;
 use std::rc::Rc;
-use tracing::info;
+use tracing::{info, warn};
 
 pub(crate) async fn handle(
     handler: &mut ConnectionHandler,
