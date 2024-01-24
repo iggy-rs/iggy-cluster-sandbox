@@ -15,11 +15,11 @@ pub(crate) async fn handle(
         "Received sync messages for stream with ID: {}",
         command.stream_id
     );
-    cluster
+    let uncommited_messages = cluster
         .append_messages(command.term, command.stream_id, &command.messages)
         .await?;
     cluster
-        .commit_messages(command.term, command.stream_id)
+        .commit_messages(command.term, command.stream_id, uncommited_messages)
         .await?;
     cluster.set_high_watermark(command.offset).await?;
     handler.send_empty_ok_response().await?;

@@ -4,6 +4,7 @@ use crate::connection::handler::ConnectionHandler;
 use crate::types::Term;
 use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
+use sdk::models::message::Message;
 use tracing::{error, info};
 
 impl Cluster {
@@ -12,7 +13,7 @@ impl Cluster {
         term: Term,
         stream_id: u64,
         messages: &[AppendableMessage],
-    ) -> Result<(), SystemError> {
+    ) -> Result<Vec<Message>, SystemError> {
         let current_term = self.election_manager.get_current_term().await;
         if current_term != term {
             error!(
@@ -25,7 +26,12 @@ impl Cluster {
         streamer.append_messages(stream_id, messages).await
     }
 
-    pub async fn commit_messages(&self, term: Term, stream_id: u64) -> Result<u64, SystemError> {
+    pub async fn commit_messages(
+        &self,
+        term: Term,
+        stream_id: u64,
+        messages: Vec<Message>,
+    ) -> Result<u64, SystemError> {
         let current_term = self.election_manager.get_current_term().await;
         if current_term != term {
             error!(
@@ -35,7 +41,7 @@ impl Cluster {
         }
 
         let mut streamer = self.streamer.lock().await;
-        streamer.commit_messages(stream_id).await
+        streamer.commit_messages(stream_id, messages).await
     }
 
     pub async fn sync_appended_messages(
@@ -43,7 +49,7 @@ impl Cluster {
         handler: &mut ConnectionHandler,
         term: Term,
         stream_id: u64,
-        messages: &[AppendableMessage],
+        messages: &[Message],
     ) -> Result<(), SystemError> {
         if !self.is_leader().await {
             handler.send_empty_ok_response().await?;
@@ -72,6 +78,13 @@ impl Cluster {
         }
 
         let mut synced_nodes = 1;
+        let appendable_messages = messages
+            .iter()
+            .map(|message| AppendableMessage {
+                id: message.id,
+                payload: message.payload.clone(),
+            })
+            .collect::<Vec<AppendableMessage>>();
         for node in self.nodes.values() {
             if node.node.is_self_node() {
                 continue;
@@ -79,7 +92,12 @@ impl Cluster {
 
             if let Err(error) = node
                 .node
-                .sync_messages(current_term, stream_id, current_offset, messages)
+                .sync_messages(
+                    current_term,
+                    stream_id,
+                    current_offset,
+                    &appendable_messages,
+                )
                 .await
             {
                 error!(

@@ -19,7 +19,6 @@ pub(crate) struct Stream {
     pub directory_path: String,
     pub log_path: String,
     pub messages: Vec<Message>,
-    pub uncommitted_messages: Vec<Message>,
     pub current_offset: u64,
     pub current_position: u64,
     pub current_id: u64,
@@ -46,7 +45,6 @@ impl Stream {
             log_path: format!("{directory_path}/{LOG_FILE}"),
             directory_path,
             messages: Vec::new(),
-            uncommitted_messages: Vec::new(),
             current_offset: 0,
             current_position: 0,
             current_id: 0,
@@ -100,9 +98,10 @@ impl Stream {
     pub async fn append_messages(
         &mut self,
         messages: &[AppendableMessage],
-    ) -> Result<(), SystemError> {
+    ) -> Result<Vec<Message>, SystemError> {
+        let mut uncommitted_messages = Vec::with_capacity(messages.len());
         for message_to_append in messages {
-            if !self.messages.is_empty() || !self.uncommitted_messages.is_empty() {
+            if !self.messages.is_empty() || !uncommitted_messages.is_empty() {
                 self.current_offset += 1;
             }
 
@@ -117,14 +116,14 @@ impl Stream {
                 self.current_id,
                 message_to_append.payload.clone(),
             );
-            self.uncommitted_messages.push(message);
+            uncommitted_messages.push(message);
         }
 
-        Ok(())
+        Ok(uncommitted_messages)
     }
 
-    pub async fn commit_messages(&mut self) -> Result<u64, SystemError> {
-        for message in &self.uncommitted_messages {
+    pub async fn commit_messages(&mut self, messages: Vec<Message>) -> Result<u64, SystemError> {
+        for message in messages {
             let size = message.get_size();
             let bytes = message.as_bytes();
             let file = file::append(&self.log_path)
@@ -148,9 +147,8 @@ impl Stream {
                 &self.log_path, self.current_offset, self.current_position
             );
 
-            self.messages.push(message.clone());
+            self.messages.push(message);
         }
-        self.uncommitted_messages.clear();
         Ok(self.current_offset)
     }
 
@@ -270,9 +268,11 @@ mod tests {
             },
         ];
         let result = stream.append_messages(&messages).await;
-        stream.commit_messages().await.unwrap();
-
         assert!(result.is_ok());
+
+        let uncommitted_messages = result.unwrap();
+        stream.commit_messages(uncommitted_messages).await.unwrap();
+
         let polled_messages = stream.poll_messages(0, 1000);
         assert!(polled_messages.is_ok());
         let polled_messages = polled_messages.unwrap();

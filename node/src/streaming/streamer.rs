@@ -97,7 +97,7 @@ impl Streamer {
         &mut self,
         stream_id: u64,
         messages: &[AppendableMessage],
-    ) -> Result<(), SystemError> {
+    ) -> Result<Vec<Message>, SystemError> {
         let stream = self.streams.get_mut(&stream_id);
         if stream.is_none() {
             return Err(SystemError::InvalidStreamId);
@@ -107,14 +107,18 @@ impl Streamer {
         stream.append_messages(messages).await
     }
 
-    pub async fn commit_messages(&mut self, stream_id: u64) -> Result<u64, SystemError> {
+    pub async fn commit_messages(
+        &mut self,
+        stream_id: u64,
+        messages: Vec<Message>,
+    ) -> Result<u64, SystemError> {
         let stream = self.streams.get_mut(&stream_id);
         if stream.is_none() {
             return Err(SystemError::InvalidStreamId);
         }
 
         let stream = stream.unwrap();
-        stream.commit_messages().await
+        stream.commit_messages(messages).await
     }
 
     pub(crate) fn poll_messages(
