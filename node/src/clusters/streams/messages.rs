@@ -117,7 +117,11 @@ impl Cluster {
                 handler.send_empty_ok_response().await?;
             }
 
-            self.state.lock().await.set_high_water_mark(current_offset);
+            self.state
+                .lock()
+                .await
+                .set_high_water_mark(current_offset)
+                .await;
             return Ok(());
         }
 

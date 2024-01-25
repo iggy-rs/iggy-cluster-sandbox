@@ -18,6 +18,7 @@ pub struct State {
     current_position: u64,
     directory_path: String,
     log_path: String,
+    high_watermark_path: String,
 }
 
 impl Display for State {
@@ -45,6 +46,7 @@ impl State {
             entries: vec![],
             directory_path: path.to_string(),
             log_path: format!("{}/state.log", path),
+            high_watermark_path: format!("{}/high_watermark", path),
         }
     }
 
@@ -60,6 +62,26 @@ impl State {
                 .await
                 .unwrap_or_else(|_| panic!("Failed to create state file: {}", self.log_path));
             info!("Created empty state file: {}", self.log_path);
+        }
+
+        if !Path::new(&self.high_watermark_path).exists() {
+            file::write(&self.high_watermark_path)
+                .await
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to create high watermark file: {}",
+                        self.high_watermark_path
+                    )
+                });
+            let file = file::append(&self.high_watermark_path).await.unwrap();
+            if file.write_all_at(vec![0u8; 8], 0).await.0.is_err() {
+                error!("Failed to init high watermark");
+                return;
+            }
+            info!(
+                "Created empty high watermark file: {}",
+                self.high_watermark_path
+            );
         }
 
         info!("Initializing state...");
@@ -112,11 +134,24 @@ impl State {
 
         self.current_position = position;
         self.last_applied = self.commit_index;
+
         info!(
             "Initialized state for {} entries. {}",
             self.entries.len(),
             self
         );
+
+        let file = file::open(&self.high_watermark_path).await.unwrap();
+        let buffer = vec![0u8; 8];
+        let (result, buffer) = file.read_exact_at(buffer, 0).await;
+        if result.is_err() {
+            error!("Failed to read high watermark");
+            return;
+        }
+
+        let high_water_mark = u64::from_le_bytes(buffer.try_into().unwrap());
+        self.high_water_mark = high_water_mark;
+        info!("Initialized high watermark: {}", self.high_water_mark);
     }
 
     pub fn set_term(&mut self, term: Term) {
@@ -168,7 +203,18 @@ impl State {
         self.last_applied = self.commit_index;
     }
 
-    pub fn set_high_water_mark(&mut self, high_water_mark: Index) {
+    pub async fn set_high_water_mark(&mut self, high_water_mark: Index) {
         self.high_water_mark = high_water_mark;
+        let file = file::write(&self.high_watermark_path).await.unwrap();
+        if file
+            .write_all_at(high_water_mark.to_le_bytes().to_vec(), 0)
+            .await
+            .0
+            .is_err()
+        {
+            error!("Failed to write high watermark");
+            return;
+        }
+        info!("Saved high watermark: {}", self.high_water_mark);
     }
 }
