@@ -31,7 +31,7 @@ impl Cluster {
         term: Term,
         stream_id: u64,
         messages: Vec<Message>,
-    ) -> Result<u64, SystemError> {
+    ) -> Result<(), SystemError> {
         let current_term = self.election_manager.get_current_term().await;
         if current_term != term {
             error!(
@@ -117,11 +117,6 @@ impl Cluster {
                 handler.send_empty_ok_response().await?;
             }
 
-            self.state
-                .lock()
-                .await
-                .set_high_water_mark(current_offset)
-                .await;
             return Ok(());
         }
 

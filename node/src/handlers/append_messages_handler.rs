@@ -19,19 +19,12 @@ pub(crate) async fn handle(
     cluster
         .sync_appended_messages(handler, term, command.stream_id, &uncommited_messages)
         .await?;
-    let offset = cluster
+    if cluster
         .commit_messages(term, command.stream_id, uncommited_messages)
-        .await;
-    if offset.is_err() {
-        let error = offset.err().unwrap();
-        error!("Failed to commit messages: {error}");
-        return Ok(());
+        .await
+        .is_err()
+    {
+        error!("Failed to commit messages.")
     }
-
-    let offset = offset.unwrap();
-    if let Err(error) = cluster.set_high_watermark(offset).await {
-        error!("Failed to set high watermark: {error}");
-    }
-
     Ok(())
 }

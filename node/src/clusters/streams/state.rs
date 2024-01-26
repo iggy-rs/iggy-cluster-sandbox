@@ -89,10 +89,4 @@ impl Cluster {
 
         Err(SystemError::CannotSyncState)
     }
-
-    pub async fn set_high_watermark(&self, high_watermark: u64) -> Result<(), SystemError> {
-        let mut state = self.state.lock().await;
-        state.set_high_water_mark(high_watermark).await;
-        Ok(())
-    }
 }

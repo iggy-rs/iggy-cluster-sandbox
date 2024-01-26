@@ -111,7 +111,7 @@ impl Streamer {
         &mut self,
         stream_id: u64,
         messages: Vec<Message>,
-    ) -> Result<u64, SystemError> {
+    ) -> Result<(), SystemError> {
         let stream = self.streams.get_mut(&stream_id);
         if stream.is_none() {
             return Err(SystemError::InvalidStreamId);

@@ -1,4 +1,5 @@
 use crate::streaming::file;
+use crate::types::Index;
 use bytes::Bytes;
 use sdk::bytes_serializable::BytesSerializable;
 use sdk::commands::append_messages::AppendableMessage;
@@ -22,6 +23,8 @@ pub(crate) struct Stream {
     pub current_offset: u64,
     pub current_position: u64,
     pub current_id: u64,
+    high_watermark_path: String,
+    pub high_water_mark: Index,
 }
 
 impl Display for Stream {
@@ -43,11 +46,13 @@ impl Stream {
             stream_id,
             leader_id,
             log_path: format!("{directory_path}/{LOG_FILE}"),
+            high_watermark_path: format!("{directory_path}/high_watermark"),
             directory_path,
             messages: Vec::new(),
             current_offset: 0,
             current_position: 0,
             current_id: 0,
+            high_water_mark: 0,
         }
     }
 
@@ -57,6 +62,38 @@ impl Stream {
                 panic!("Failed to create stream directory: {}", self.directory_path)
             });
             info!("Created stream directory: {}", self.directory_path);
+        }
+
+        if !Path::new(&self.high_watermark_path).exists() {
+            file::write(&self.high_watermark_path)
+                .await
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to create high watermark file: {}",
+                        self.high_watermark_path
+                    )
+                });
+            let file = file::append(&self.high_watermark_path).await.unwrap();
+            if file.write_all_at(vec![0u8; 8], 0).await.0.is_err() {
+                error!("Failed to init high watermark");
+                return;
+            }
+            info!(
+                "Created empty high watermark file: {}",
+                self.high_watermark_path
+            );
+        } else {
+            let high_watermark = file::open(&self.high_watermark_path).await.unwrap();
+            let buffer = vec![0u8; 8];
+            let (result, buffer) = high_watermark.read_exact_at(buffer, 0).await;
+            if result.is_err() {
+                error!("Failed to read high watermark");
+                return;
+            }
+
+            let high_water_mark = u64::from_le_bytes(buffer.try_into().unwrap());
+            self.high_water_mark = high_water_mark;
+            info!("Initialized high watermark: {}", self.high_water_mark);
         }
 
         if !Path::new(&self.log_path).exists() {
@@ -122,7 +159,7 @@ impl Stream {
         Ok(uncommitted_messages)
     }
 
-    pub async fn commit_messages(&mut self, messages: Vec<Message>) -> Result<u64, SystemError> {
+    pub async fn commit_messages(&mut self, messages: Vec<Message>) -> Result<(), SystemError> {
         for message in messages {
             let size = message.get_size();
             let bytes = message.as_bytes();
@@ -149,7 +186,8 @@ impl Stream {
 
             self.messages.push(message);
         }
-        Ok(self.current_offset)
+        self.set_high_water_mark(self.current_offset).await;
+        Ok(())
     }
 
     pub fn poll_messages(&self, offset: u64, count: u64) -> Result<&[Message], SystemError> {
@@ -222,6 +260,21 @@ impl Stream {
         }
 
         (messages, position)
+    }
+
+    pub async fn set_high_water_mark(&mut self, high_water_mark: Index) {
+        self.high_water_mark = high_water_mark;
+        let file = file::write(&self.high_watermark_path).await.unwrap();
+        if file
+            .write_all_at(high_water_mark.to_le_bytes().to_vec(), 0)
+            .await
+            .0
+            .is_err()
+        {
+            error!("Failed to write high watermark");
+            return;
+        }
+        info!("Saved high watermark: {}", self.high_water_mark);
     }
 }
 
