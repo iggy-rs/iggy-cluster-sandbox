@@ -24,7 +24,7 @@ pub(crate) struct Stream {
     pub current_position: u64,
     pub current_id: u64,
     high_watermark_path: String,
-    pub high_water_mark: Index,
+    pub high_watermark: Index,
 }
 
 impl Display for Stream {
@@ -52,7 +52,7 @@ impl Stream {
             current_offset: 0,
             current_position: 0,
             current_id: 0,
-            high_water_mark: 0,
+            high_watermark: 0,
         }
     }
 
@@ -91,9 +91,9 @@ impl Stream {
                 return;
             }
 
-            let high_water_mark = u64::from_le_bytes(buffer.try_into().unwrap());
-            self.high_water_mark = high_water_mark;
-            info!("Initialized high watermark: {}", self.high_water_mark);
+            let high_watermark = u64::from_le_bytes(buffer.try_into().unwrap());
+            self.high_watermark = high_watermark;
+            info!("Initialized high watermark: {}", self.high_watermark);
         }
 
         if !Path::new(&self.log_path).exists() {
@@ -102,12 +102,18 @@ impl Stream {
                 .unwrap_or_else(|_| panic!("Failed to create stream file: {}", self.log_path));
             info!("Created empty stream file: {}", self.log_path);
         } else {
-            let (messages, position) = self.load_messages_from_disk().await;
+            let (messages, position) = self
+                .load_messages_from_disk(Some(self.high_watermark))
+                .await;
             if !messages.is_empty() {
                 self.messages = messages;
                 self.current_position = position;
                 self.current_offset = self.messages.len() as u64 - 1;
                 self.current_id = self.messages.iter().max_by_key(|m| m.id).unwrap().id;
+                if self.truncate_stream(self.current_position).is_err() {
+                    error!("Failed to truncate stream file: {}", self.log_path);
+                    return;
+                }
             }
         }
 
@@ -117,6 +123,21 @@ impl Stream {
             self.log_path,
             self.messages.len()
         );
+    }
+
+    pub fn truncate_stream(&mut self, size: u64) -> Result<(), SystemError> {
+        let file = std::fs::File::open(&self.log_path)?;
+        let file_size = file.metadata()?.len();
+        if file_size <= size {
+            return Ok(());
+        }
+
+        info!(
+            "Truncating stream with ID: {}, path: {}, from: {file_size} bytes to {size} bytes...",
+            self.stream_id, self.log_path
+        );
+        file.set_len(size)?;
+        Ok(())
     }
 
     pub fn delete(&self) {
@@ -186,7 +207,7 @@ impl Stream {
 
             self.messages.push(message);
         }
-        self.set_high_water_mark(self.current_offset).await;
+        self.set_high_watermark(self.current_offset).await;
         Ok(())
     }
 
@@ -213,7 +234,7 @@ impl Stream {
         Ok(messages)
     }
 
-    pub async fn load_messages_from_disk(&self) -> (Vec<Message>, u64) {
+    pub async fn load_messages_from_disk(&self, end_offset: Option<u64>) -> (Vec<Message>, u64) {
         let mut messages = Vec::new();
         let file = file::open(&self.log_path)
             .await
@@ -257,16 +278,22 @@ impl Stream {
             position += payload_length as u64;
             let message = Message::new(offset, id, Bytes::from(payload.1));
             messages.push(message);
+
+            if let Some(end_offset) = end_offset {
+                if offset >= end_offset {
+                    break;
+                }
+            }
         }
 
         (messages, position)
     }
 
-    pub async fn set_high_water_mark(&mut self, high_water_mark: Index) {
-        self.high_water_mark = high_water_mark;
+    pub async fn set_high_watermark(&mut self, high_watermark: Index) {
+        self.high_watermark = high_watermark;
         let file = file::write(&self.high_watermark_path).await.unwrap();
         if file
-            .write_all_at(high_water_mark.to_le_bytes().to_vec(), 0)
+            .write_all_at(high_watermark.to_le_bytes().to_vec(), 0)
             .await
             .0
             .is_err()
@@ -274,7 +301,7 @@ impl Stream {
             error!("Failed to write high watermark");
             return;
         }
-        info!("Saved high watermark: {}", self.high_water_mark);
+        info!("Saved high watermark: {}", self.high_watermark);
     }
 }
 
@@ -337,7 +364,7 @@ mod tests {
         assert_message(polled_message2, 1, 2, b"message-2");
         assert_message(polled_message3, 2, 3, b"message-3");
 
-        let (loaded_messages, position) = stream.load_messages_from_disk().await;
+        let (loaded_messages, position) = stream.load_messages_from_disk(None).await;
         assert!(position > 0);
         assert_eq!(loaded_messages.len(), 3);
         let loaded_message1 = &loaded_messages[0];
