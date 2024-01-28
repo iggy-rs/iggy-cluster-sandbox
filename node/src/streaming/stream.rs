@@ -156,7 +156,8 @@ impl Stream {
     pub async fn append_messages(
         &mut self,
         messages: &[AppendableMessage],
-    ) -> Result<Vec<Message>, SystemError> {
+    ) -> Result<(Vec<Message>, u64), SystemError> {
+        let current_offset = self.current_offset;
         let mut uncommitted_messages = Vec::with_capacity(messages.len());
         for message_to_append in messages {
             if !self.messages.is_empty() || !uncommitted_messages.is_empty() {
@@ -177,7 +178,7 @@ impl Stream {
             uncommitted_messages.push(message);
         }
 
-        Ok(uncommitted_messages)
+        Ok((uncommitted_messages, current_offset))
     }
 
     pub async fn commit_messages(&mut self, messages: Vec<Message>) -> Result<(), SystemError> {
@@ -209,6 +210,10 @@ impl Stream {
         }
         self.set_high_watermark(self.current_offset).await;
         Ok(())
+    }
+
+    pub async fn reset_offset(&mut self, offset: u64) {
+        self.current_offset = offset;
     }
 
     pub fn poll_messages(&self, offset: u64, count: u64) -> Result<&[Message], SystemError> {
@@ -350,7 +355,10 @@ mod tests {
         let result = stream.append_messages(&messages).await;
         assert!(result.is_ok());
 
-        let uncommitted_messages = result.unwrap();
+        let (uncommitted_messages, current_offset) = result.unwrap();
+        assert_eq!(stream.current_offset, 2); // Uncommited offset
+        assert_eq!(current_offset, 0);
+
         stream.commit_messages(uncommitted_messages).await.unwrap();
 
         let polled_messages = stream.poll_messages(0, 1000);

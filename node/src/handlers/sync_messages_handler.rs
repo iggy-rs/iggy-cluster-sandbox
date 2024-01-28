@@ -3,7 +3,7 @@ use crate::connection::handler::ConnectionHandler;
 use sdk::commands::sync_messages::SyncMessages;
 use sdk::error::SystemError;
 use std::rc::Rc;
-use tracing::info;
+use tracing::{error, info};
 
 pub(crate) async fn handle(
     handler: &mut ConnectionHandler,
@@ -15,12 +15,19 @@ pub(crate) async fn handle(
         "Received sync messages for stream with ID: {}",
         command.stream_id
     );
-    let uncommited_messages = cluster
+    let (uncommited_messages, current_offset) = cluster
         .append_messages(command.term, command.stream_id, &command.messages)
         .await?;
-    cluster
+    if cluster
         .commit_messages(command.term, command.stream_id, uncommited_messages)
-        .await?;
+        .await
+        .is_err()
+    {
+        cluster
+            .reset_offset(command.stream_id, current_offset)
+            .await;
+        error!("Failed to commit messages.")
+    }
     handler.send_empty_ok_response().await?;
     info!("Sent a sync messages response.");
     Ok(())

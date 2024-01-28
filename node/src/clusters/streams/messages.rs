@@ -13,7 +13,7 @@ impl Cluster {
         term: Term,
         stream_id: u64,
         messages: &[AppendableMessage],
-    ) -> Result<Vec<Message>, SystemError> {
+    ) -> Result<(Vec<Message>, u64), SystemError> {
         let current_term = self.election_manager.get_current_term().await;
         if current_term != term {
             error!(
@@ -42,6 +42,11 @@ impl Cluster {
 
         let mut streamer = self.streamer.lock().await;
         streamer.commit_messages(stream_id, messages).await
+    }
+
+    pub async fn reset_offset(&self, stream_id: u64, offset: u64) {
+        let mut streamer = self.streamer.lock().await;
+        streamer.reset_offset(stream_id, offset).await
     }
 
     pub async fn sync_appended_messages(
@@ -127,8 +132,6 @@ impl Cluster {
         if !majority_required {
             return Ok(());
         }
-
-        // TODO: Write-ahead log to revert appended messages.
 
         Err(SystemError::CannotSyncAppendedMessages)
     }

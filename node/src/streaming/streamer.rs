@@ -97,7 +97,7 @@ impl Streamer {
         &mut self,
         stream_id: u64,
         messages: &[AppendableMessage],
-    ) -> Result<Vec<Message>, SystemError> {
+    ) -> Result<(Vec<Message>, u64), SystemError> {
         let stream = self.streams.get_mut(&stream_id);
         if stream.is_none() {
             return Err(SystemError::InvalidStreamId);
@@ -119,6 +119,16 @@ impl Streamer {
 
         let stream = stream.unwrap();
         stream.commit_messages(messages).await
+    }
+
+    pub async fn reset_offset(&mut self, stream_id: u64, offset: u64) {
+        let stream = self.streams.get_mut(&stream_id);
+        if stream.is_none() {
+            return;
+        }
+
+        let stream = stream.unwrap();
+        stream.reset_offset(offset).await
     }
 
     pub(crate) fn poll_messages(

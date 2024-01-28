@@ -13,17 +13,27 @@ pub(crate) async fn handle(
     cluster.verify_is_healthy().await?;
     cluster.verify_is_leader().await?;
     let term = cluster.election_manager.get_current_term().await;
-    let uncommited_messages = cluster
+    let (uncommited_messages, current_offset) = cluster
         .append_messages(term, command.stream_id, &command.messages)
         .await?;
-    cluster
+    if cluster
         .sync_appended_messages(handler, term, command.stream_id, &uncommited_messages)
-        .await?;
+        .await
+        .is_err()
+    {
+        cluster
+            .reset_offset(command.stream_id, current_offset)
+            .await;
+        error!("Failed to sync appended messages.")
+    }
     if cluster
         .commit_messages(term, command.stream_id, uncommited_messages)
         .await
         .is_err()
     {
+        cluster
+            .reset_offset(command.stream_id, current_offset)
+            .await;
         error!("Failed to commit messages.")
     }
     Ok(())
