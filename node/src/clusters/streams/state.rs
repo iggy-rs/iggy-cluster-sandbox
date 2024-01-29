@@ -80,8 +80,6 @@ impl Cluster {
         error!(
             "Failed to sync state to quorum of nodes, synced nodes: {synced_nodes} < quorum: {quorum}",
         );
-        // TODO: Rollback
-        // self.streamer.lock().await.delete_stream(stream_id).await;
 
         if !majority_required {
             return Ok(());

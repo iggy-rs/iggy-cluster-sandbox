@@ -24,7 +24,11 @@ pub(crate) async fn handle(
         cluster
             .reset_offset(command.stream_id, current_offset)
             .await;
-        error!("Failed to sync appended messages.")
+        error!(
+            "Failed to sync appended messages for stream with ID: {}.",
+            command.stream_id
+        );
+        return Ok(());
     }
     if cluster
         .commit_messages(term, command.stream_id, uncommited_messages)
@@ -34,7 +38,10 @@ pub(crate) async fn handle(
         cluster
             .reset_offset(command.stream_id, current_offset)
             .await;
-        error!("Failed to commit messages.")
+        error!(
+            "Failed to commit messages for stream with ID: {}.",
+            command.stream_id
+        );
     }
     Ok(())
 }

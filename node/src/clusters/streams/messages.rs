@@ -5,7 +5,7 @@ use crate::types::Term;
 use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
 use sdk::models::message::Message;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 impl Cluster {
     pub async fn append_messages(
@@ -17,7 +17,7 @@ impl Cluster {
         let current_term = self.election_manager.get_current_term().await;
         if current_term != term {
             error!(
-                "Failed to append messages, term: {term} is not equal to current term: {current_term}.",
+                "Failed to append messages to stream with ID: {stream_id}, term: {term} is not equal to current term: {current_term}.",
             );
             return Err(SystemError::InvalidTerm(term));
         }
@@ -35,7 +35,7 @@ impl Cluster {
         let current_term = self.election_manager.get_current_term().await;
         if current_term != term {
             error!(
-                "Failed to commit messages, term: {term} is not equal to current term: {current_term}.",
+                "Failed to commit messages to stream with ID: {stream_id}, term: {term} is not equal to current term: {current_term}.",
             );
             return Err(SystemError::InvalidTerm(term));
         }
@@ -45,8 +45,10 @@ impl Cluster {
     }
 
     pub async fn reset_offset(&self, stream_id: u64, offset: u64) {
+        warn!("Resetting offset for stream with ID: {stream_id} to: {offset}...",);
         let mut streamer = self.streamer.lock().await;
-        streamer.reset_offset(stream_id, offset).await
+        streamer.reset_offset(stream_id, offset).await;
+        warn!("Successfully reset offset for stream with ID: {stream_id} to: {offset}.");
     }
 
     pub async fn sync_appended_messages(

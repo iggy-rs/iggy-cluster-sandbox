@@ -64,7 +64,6 @@ impl Cluster {
             .await
         {
             error!("Failed to sync deleted stream with ID: {stream_id}, {error}",);
-            self.streamer.lock().await.delete_stream(stream_id).await;
             return Err(SystemError::CannotSyncDeletedStream);
         }
         info!("Successfully synced deleted stream with ID: {stream_id} to quorum of nodes.");

@@ -26,7 +26,11 @@ pub(crate) async fn handle(
         cluster
             .reset_offset(command.stream_id, current_offset)
             .await;
-        error!("Failed to commit messages.")
+        error!(
+            "Failed to commit messages for stream with ID: {} received for sync.",
+            command.stream_id
+        );
+        return Ok(());
     }
     handler.send_empty_ok_response().await?;
     info!("Sent a sync messages response.");
