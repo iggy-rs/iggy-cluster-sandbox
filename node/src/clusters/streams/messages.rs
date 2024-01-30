@@ -63,13 +63,20 @@ impl Cluster {
             return Ok(());
         }
 
-        let current_offset = self
-            .streamer
-            .lock()
-            .await
-            .get_stream(stream_id)
-            .unwrap()
-            .current_offset;
+        let current_offset;
+        let replication_factor;
+        {
+            let streamer = self.streamer.lock().await;
+            let stream = streamer.get_stream(stream_id).unwrap();
+            current_offset = stream.current_offset;
+            replication_factor = stream.replication_factor as u64;
+        }
+
+        if replication_factor == 1 {
+            info!("Replication factor is 1, no need to sync appended messages.");
+            return Ok(());
+        }
+
         let current_term = self.election_manager.get_current_term().await;
         if current_term != term {
             error!(
@@ -115,20 +122,18 @@ impl Cluster {
             }
 
             synced_nodes += 1;
-        }
+            if synced_nodes >= replication_factor {
+                info!("Successfully synced appended messages to replication factor of {replication_factor} nodes.");
+                if majority_required {
+                    handler.send_empty_ok_response().await?;
+                }
 
-        let quorum = self.get_quorum_count();
-        if synced_nodes >= quorum {
-            info!("Successfully synced appended messages to quorum of nodes.");
-            if majority_required {
-                handler.send_empty_ok_response().await?;
+                return Ok(());
             }
-
-            return Ok(());
         }
 
         error!(
-            "Failed to sync appended messages to quorum of nodes, synced nodes: {synced_nodes} < quorum: {quorum}.",
+            "Failed to sync appended messages to replication factor of {replication_factor} nodes.",
         );
 
         if !majority_required {

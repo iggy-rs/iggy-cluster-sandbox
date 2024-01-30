@@ -38,13 +38,13 @@ impl Streamer {
         }
     }
 
-    pub async fn create_stream(&mut self, id: u64) {
+    pub async fn create_stream(&mut self, id: u64, replication_factor: u8) {
         if self.streams.contains_key(&id) {
             warn!("Stream: {id} already exists.");
             return;
         }
 
-        let mut stream = Stream::new(id, self.node_id, &self.path);
+        let mut stream = Stream::new(id, self.node_id, &self.path, replication_factor);
         stream.init().await;
         self.streams.insert(id, stream);
     }
@@ -86,7 +86,7 @@ impl Streamer {
                 .unwrap()
                 .parse::<u64>()
                 .unwrap();
-            let mut stream = Stream::new(stream_id, self.node_id, &self.path);
+            let mut stream = Stream::new(stream_id, self.node_id, &self.path, 3);
             stream.init().await;
             self.streams.insert(stream_id, stream);
             info!("Initialized stream with ID: {}", stream_id);

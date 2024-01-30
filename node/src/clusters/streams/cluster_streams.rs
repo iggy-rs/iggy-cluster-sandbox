@@ -16,7 +16,7 @@ impl Cluster {
             return Err(SystemError::InvalidTerm(term));
         }
 
-        self.streamer.lock().await.create_stream(stream_id).await;
+        self.streamer.lock().await.create_stream(stream_id, 3).await;
         Ok(())
     }
 
@@ -90,7 +90,7 @@ impl Cluster {
             let streams = streams.unwrap();
             for stream in streams {
                 info!("Syncing stream: {stream} from cluster node with ID: {node_id}");
-                self.streamer.lock().await.create_stream(stream.id).await;
+                self.streamer.lock().await.create_stream(stream.id, 3).await;
             }
         }
 

@@ -23,6 +23,7 @@ pub(crate) struct Stream {
     pub current_offset: u64,
     pub current_position: u64,
     pub current_id: u64,
+    pub replication_factor: u8,
     high_watermark_path: String,
     pub high_watermark: Index,
 }
@@ -40,7 +41,7 @@ impl Display for Stream {
 }
 
 impl Stream {
-    pub fn new(stream_id: u64, leader_id: u64, path: &str) -> Self {
+    pub fn new(stream_id: u64, leader_id: u64, path: &str, replication_factor: u8) -> Self {
         let directory_path = format!("{path}/{stream_id}");
         Self {
             stream_id,
@@ -52,6 +53,7 @@ impl Stream {
             current_offset: 0,
             current_position: 0,
             current_id: 0,
+            replication_factor,
             high_watermark: 0,
         }
     }
@@ -336,7 +338,7 @@ mod tests {
         let test = Test {};
         let stream_id = 1;
         let node_id = 2;
-        let mut stream = Stream::new(stream_id, node_id, &test.streams_path());
+        let mut stream = Stream::new(stream_id, node_id, &test.streams_path(), 3);
         stream.init().await;
         let messages = vec![
             sdk::commands::append_messages::AppendableMessage {
