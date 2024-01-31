@@ -24,8 +24,10 @@ pub(crate) fn parse(input: &str) -> Option<Command> {
 }
 
 fn parse_create_stream(input: &str) -> Option<Command> {
-    let id = input.parse::<u64>().unwrap();
-    Some(CreateStream::new_command(id))
+    let parts = input.split('|').collect::<Vec<&str>>();
+    let id = parts[0].parse::<u64>().unwrap();
+    let replication_factor = parts.get(1).unwrap_or(&"").parse::<u8>().ok();
+    Some(CreateStream::new_command(id, replication_factor))
 }
 
 fn parse_delete_stream(input: &str) -> Option<Command> {

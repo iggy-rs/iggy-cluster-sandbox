@@ -148,9 +148,13 @@ impl ClusterClient {
         Ok(())
     }
 
-    pub async fn create_stream(&self, stream_id: u64) -> Result<(), SystemError> {
+    pub async fn create_stream(
+        &self,
+        stream_id: u64,
+        replication_factor: Option<u8>,
+    ) -> Result<(), SystemError> {
         let leader_address = self.get_leader_address().await?;
-        let command = CreateStream::new_command(stream_id);
+        let command = CreateStream::new_command(stream_id, replication_factor);
         self.send(&command, &leader_address).await?;
         Ok(())
     }

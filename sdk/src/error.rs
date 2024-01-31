@@ -78,6 +78,8 @@ pub enum SystemError {
     CannotSyncDeletedStream,
     #[error("Cannot sync state")]
     CannotSyncState,
+    #[error("Invalid replication factor: {0}")]
+    InvalidReplicationFactor(u8),
 }
 
 impl SystemError {
@@ -120,6 +122,7 @@ impl SystemError {
             SystemError::InvalidPreviousLogIndex => 35,
             SystemError::CannotSyncDeletedStream => 36,
             SystemError::CannotSyncState => 37,
+            SystemError::InvalidReplicationFactor(_) => 38,
         }
     }
 }

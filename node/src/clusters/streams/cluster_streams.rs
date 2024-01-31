@@ -7,7 +7,12 @@ use sdk::error::SystemError;
 use tracing::{error, info};
 
 impl Cluster {
-    pub async fn create_stream(&self, term: Term, stream_id: u64) -> Result<(), SystemError> {
+    pub async fn create_stream(
+        &self,
+        term: Term,
+        stream_id: u64,
+        replication_factor: Option<u8>,
+    ) -> Result<(), SystemError> {
         let current_term = self.election_manager.get_current_term().await;
         if current_term != term {
             error!(
@@ -16,8 +21,20 @@ impl Cluster {
             return Err(SystemError::InvalidTerm(term));
         }
 
-        self.streamer.lock().await.create_stream(stream_id, 3).await;
-        Ok(())
+        let nodes_count = self.nodes.len() as u8;
+        let replication_factor = replication_factor.unwrap_or(3);
+        if replication_factor > nodes_count {
+            error!(
+                "Failed to create stream, replication factor: {replication_factor} is greater than number of nodes: {nodes_count}.",
+            );
+            return Err(SystemError::InvalidReplicationFactor(replication_factor));
+        }
+
+        self.streamer
+            .lock()
+            .await
+            .create_stream(stream_id, replication_factor)
+            .await
     }
 
     pub async fn delete_stream(&self, term: Term, stream_id: u64) -> Result<(), SystemError> {
@@ -38,10 +55,15 @@ impl Cluster {
         handler: &mut ConnectionHandler,
         term: Term,
         stream_id: u64,
+        replication_factor: Option<u8>,
     ) -> Result<(), SystemError> {
         info!("Syncing created stream with ID: {stream_id} to quorum of nodes.");
         if let Err(error) = self
-            .sync_state(handler, term, CreateStream::new_command(stream_id))
+            .sync_state(
+                handler,
+                term,
+                CreateStream::new_command(stream_id, replication_factor),
+            )
             .await
         {
             error!("Failed to sync created stream with ID: {stream_id}, {error}",);
@@ -90,7 +112,11 @@ impl Cluster {
             let streams = streams.unwrap();
             for stream in streams {
                 info!("Syncing stream: {stream} from cluster node with ID: {node_id}");
-                self.streamer.lock().await.create_stream(stream.id, 3).await;
+                self.streamer
+                    .lock()
+                    .await
+                    .create_stream(stream.id, 3)
+                    .await?;
             }
         }
 

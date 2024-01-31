@@ -22,7 +22,11 @@ pub(crate) async fn handle(
         match command::map_from_bytes(&entry.data)? {
             Command::CreateStream(create_stream) => {
                 cluster
-                    .create_stream(command.term, create_stream.id)
+                    .create_stream(
+                        command.term,
+                        create_stream.id,
+                        create_stream.replication_factor,
+                    )
                     .await?;
             }
             Command::DeleteStream(delete_stream) => {

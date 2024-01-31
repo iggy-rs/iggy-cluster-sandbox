@@ -38,15 +38,20 @@ impl Streamer {
         }
     }
 
-    pub async fn create_stream(&mut self, id: u64, replication_factor: u8) {
+    pub async fn create_stream(
+        &mut self,
+        id: u64,
+        replication_factor: u8,
+    ) -> Result<(), SystemError> {
         if self.streams.contains_key(&id) {
             warn!("Stream: {id} already exists.");
-            return;
+            return Ok(());
         }
 
         let mut stream = Stream::new(id, self.node_id, &self.path, replication_factor);
         stream.init().await;
         self.streams.insert(id, stream);
+        Ok(())
     }
 
     pub async fn delete_stream(&mut self, id: u64) {
@@ -86,6 +91,8 @@ impl Streamer {
                 .unwrap()
                 .parse::<u64>()
                 .unwrap();
+
+            // TODO: Load replication factor
             let mut stream = Stream::new(stream_id, self.node_id, &self.path, 3);
             stream.init().await;
             self.streams.insert(stream_id, stream);

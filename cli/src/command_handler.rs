@@ -40,7 +40,9 @@ pub(crate) async fn handle(command: Command, client: &ClusterClient) -> Result<(
             }
         }
         Command::CreateStream(create_stream) => {
-            client.create_stream(create_stream.id).await?;
+            client
+                .create_stream(create_stream.id, create_stream.replication_factor)
+                .await?;
             info!("Created stream with ID: {}", create_stream.id);
         }
         Command::DeleteStream(delete_stream) => {
