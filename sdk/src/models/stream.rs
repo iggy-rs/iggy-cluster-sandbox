@@ -7,19 +7,25 @@ use std::fmt::{Display, Formatter};
 pub struct Stream {
     pub id: u64,
     pub offset: u64,
+    pub replication_factor: u8,
 }
 
 impl Display for Stream {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Stream {{ id: {}, offset: {} }}", self.id, self.offset)
+        write!(
+            f,
+            "Stream {{ id: {}, offset: {}, replication_factor: {} }}",
+            self.id, self.offset, self.replication_factor
+        )
     }
 }
 
 impl BytesSerializable for Stream {
     fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(16);
+        let mut bytes = Vec::with_capacity(17);
         bytes.put_u64_le(self.id);
         bytes.put_u64_le(self.offset);
+        bytes.put_u8(self.replication_factor);
         bytes
     }
 
@@ -27,12 +33,17 @@ impl BytesSerializable for Stream {
     where
         Self: Sized,
     {
-        if bytes.len() != 16 {
+        if bytes.len() != 17 {
             return Err(SystemError::InvalidCommand);
         }
 
         let id = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
         let offset = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
-        Ok(Stream { id, offset })
+        let replication_factor = bytes[16];
+        Ok(Stream {
+            id,
+            offset,
+            replication_factor,
+        })
     }
 }

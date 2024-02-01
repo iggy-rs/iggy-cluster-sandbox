@@ -24,6 +24,7 @@ pub(crate) struct Stream {
     pub current_position: u64,
     pub current_id: u64,
     pub replication_factor: u8,
+    replication_factor_path: String,
     high_watermark_path: String,
     pub high_watermark: Index,
 }
@@ -48,6 +49,7 @@ impl Stream {
             leader_id,
             log_path: format!("{directory_path}/{LOG_FILE}"),
             high_watermark_path: format!("{directory_path}/high_watermark"),
+            replication_factor_path: format!("{directory_path}/replication_factor"),
             directory_path,
             messages: Vec::new(),
             current_offset: 0,
@@ -64,6 +66,42 @@ impl Stream {
                 panic!("Failed to create stream directory: {}", self.directory_path)
             });
             info!("Created stream directory: {}", self.directory_path);
+        }
+
+        if !Path::new(&self.replication_factor_path).exists() {
+            file::write(&self.replication_factor_path)
+                .await
+                .unwrap_or_else(|_| {
+                    panic!(
+                        "Failed to create replication factor file: {}",
+                        self.replication_factor_path
+                    )
+                });
+            let file = file::append(&self.replication_factor_path).await.unwrap();
+            let buffer = self.replication_factor.to_le_bytes().to_vec();
+            if file.write_all_at(buffer, 0).await.0.is_err() {
+                error!("Failed to init replication factor");
+                return;
+            }
+            info!(
+                "Created default replication factor file: {}",
+                self.replication_factor_path
+            );
+        } else {
+            let replication_factor = file::open(&self.replication_factor_path).await.unwrap();
+            let buffer = vec![0u8; 1];
+            let (result, buffer) = replication_factor.read_exact_at(buffer, 0).await;
+            if result.is_err() {
+                error!("Failed to read replication factor");
+                return;
+            }
+
+            let replication_factor = buffer[0];
+            self.replication_factor = replication_factor;
+            info!(
+                "Initialized replication factor: {}",
+                self.replication_factor_path
+            );
         }
 
         if !Path::new(&self.high_watermark_path).exists() {

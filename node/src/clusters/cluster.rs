@@ -362,6 +362,7 @@ impl Cluster {
             .map(|stream| Stream {
                 id: stream.stream_id,
                 offset: stream.current_offset,
+                replication_factor: stream.replication_factor,
             })
             .collect();
         streams.sort_by(|a, b| a.id.cmp(&b.id));

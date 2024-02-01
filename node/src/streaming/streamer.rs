@@ -92,8 +92,7 @@ impl Streamer {
                 .parse::<u64>()
                 .unwrap();
 
-            // TODO: Load replication factor
-            let mut stream = Stream::new(stream_id, self.node_id, &self.path, 3);
+            let mut stream = Stream::new(stream_id, self.node_id, &self.path, 1);
             stream.init().await;
             self.streams.insert(stream_id, stream);
             info!("Initialized stream with ID: {}", stream_id);

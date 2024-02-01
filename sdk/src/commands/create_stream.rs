@@ -26,7 +26,7 @@ impl CreateStream {
 
 impl BytesSerializable for CreateStream {
     fn as_bytes(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(8);
+        let mut bytes = Vec::with_capacity(9);
         bytes.put_u64_le(self.id);
         bytes.put_u8(self.replication_factor.unwrap_or(0));
         bytes

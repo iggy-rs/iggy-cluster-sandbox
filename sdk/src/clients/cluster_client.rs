@@ -134,8 +134,8 @@ impl ClusterClient {
         let mut streams = Vec::new();
         let mut position = 0;
         while position < bytes.len() {
-            let stream = Stream::from_bytes(&bytes[position..position + 16])?;
-            position += 16;
+            let stream = Stream::from_bytes(&bytes[position..position + 17])?;
+            position += 17;
             streams.push(stream);
         }
         Ok(streams)
