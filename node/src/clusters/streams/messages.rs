@@ -1,6 +1,7 @@
 use crate::clusters::cluster::Cluster;
 use crate::configs::config::RequiredAcknowledgements;
 use crate::connection::handler::ConnectionHandler;
+use crate::models::appended_messages::AppendedMessages;
 use crate::types::Term;
 use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
@@ -13,7 +14,7 @@ impl Cluster {
         term: Term,
         stream_id: u64,
         messages: &[AppendableMessage],
-    ) -> Result<(Vec<Message>, u64), SystemError> {
+    ) -> Result<AppendedMessages, SystemError> {
         let current_term = self.election_manager.get_current_term().await;
         if current_term != term {
             error!(

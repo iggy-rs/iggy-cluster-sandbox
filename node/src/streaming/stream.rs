@@ -1,3 +1,4 @@
+use crate::models::appended_messages::AppendedMessages;
 use crate::streaming::file;
 use crate::types::Index;
 use bytes::Bytes;
@@ -196,7 +197,7 @@ impl Stream {
     pub async fn append_messages(
         &mut self,
         messages: &[AppendableMessage],
-    ) -> Result<(Vec<Message>, u64), SystemError> {
+    ) -> Result<AppendedMessages, SystemError> {
         let current_offset = self.current_offset;
         let mut uncommitted_messages = Vec::with_capacity(messages.len());
         for message_to_append in messages {
@@ -218,7 +219,7 @@ impl Stream {
             uncommitted_messages.push(message);
         }
 
-        Ok((uncommitted_messages, current_offset))
+        Ok(AppendedMessages::new(uncommitted_messages, current_offset))
     }
 
     pub async fn commit_messages(&mut self, messages: Vec<Message>) -> Result<(), SystemError> {
@@ -395,11 +396,14 @@ mod tests {
         let result = stream.append_messages(&messages).await;
         assert!(result.is_ok());
 
-        let (uncommitted_messages, current_offset) = result.unwrap();
+        let appended_messages = result.unwrap();
         assert_eq!(stream.current_offset, 2); // Uncommited offset
-        assert_eq!(current_offset, 0);
+        assert_eq!(appended_messages.previous_offset, 0);
 
-        stream.commit_messages(uncommitted_messages).await.unwrap();
+        stream
+            .commit_messages(appended_messages.uncommited_messages)
+            .await
+            .unwrap();
 
         let polled_messages = stream.poll_messages(0, 1000);
         assert!(polled_messages.is_ok());

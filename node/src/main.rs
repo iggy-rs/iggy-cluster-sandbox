@@ -14,6 +14,7 @@ mod clusters;
 mod configs;
 mod connection;
 mod handlers;
+mod models;
 mod server;
 mod streaming;
 mod types;

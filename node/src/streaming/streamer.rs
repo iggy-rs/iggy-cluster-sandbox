@@ -1,3 +1,4 @@
+use crate::models::appended_messages::AppendedMessages;
 use crate::streaming::stream::Stream;
 use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
@@ -103,7 +104,7 @@ impl Streamer {
         &mut self,
         stream_id: u64,
         messages: &[AppendableMessage],
-    ) -> Result<(Vec<Message>, u64), SystemError> {
+    ) -> Result<AppendedMessages, SystemError> {
         let stream = self.streams.get_mut(&stream_id);
         if stream.is_none() {
             return Err(SystemError::InvalidStreamId);

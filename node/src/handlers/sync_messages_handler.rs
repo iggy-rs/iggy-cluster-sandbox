@@ -15,16 +15,20 @@ pub(crate) async fn handle(
         "Received sync messages for stream with ID: {}",
         command.stream_id
     );
-    let (uncommited_messages, current_offset) = cluster
+    let appended_messages = cluster
         .append_messages(command.term, command.stream_id, &command.messages)
         .await?;
     if cluster
-        .commit_messages(command.term, command.stream_id, uncommited_messages)
+        .commit_messages(
+            command.term,
+            command.stream_id,
+            appended_messages.uncommited_messages,
+        )
         .await
         .is_err()
     {
         cluster
-            .reset_offset(command.stream_id, current_offset)
+            .reset_offset(command.stream_id, appended_messages.previous_offset)
             .await;
         error!(
             "Failed to commit messages for stream with ID: {} received for sync.",
