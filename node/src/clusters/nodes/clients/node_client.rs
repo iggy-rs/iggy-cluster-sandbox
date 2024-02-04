@@ -16,6 +16,7 @@ use sdk::commands::sync_messages::SyncMessages;
 use sdk::commands::update_leader::UpdateLeader;
 use sdk::error::SystemError;
 use sdk::models::log_entry::LogEntry;
+use sdk::models::node_state::NodeState;
 use sdk::models::stream::Stream;
 use std::net::SocketAddr;
 use std::time::{Duration, Instant};
@@ -281,6 +282,17 @@ impl NodeClient {
         }
 
         Ok(streams)
+    }
+
+    pub async fn get_node_state(&self) -> Result<NodeState, SystemError> {
+        info!(
+            "Sending a get node info to cluster node ID: {}, address: {}...",
+            self.id, self.address
+        );
+
+        // TODO: Implement the get node state command
+        let node_state = NodeState::default();
+        Ok(node_state)
     }
 
     pub async fn append_entries(

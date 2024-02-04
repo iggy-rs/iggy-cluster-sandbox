@@ -160,6 +160,7 @@ impl Cluster {
 
     pub async fn init(&self) -> Result<(), SystemError> {
         self.connect_to_all_nodes().await?;
+        self.sync_nodes_state().await?;
         self.sync_streams_from_other_nodes().await?;
         Ok(())
     }

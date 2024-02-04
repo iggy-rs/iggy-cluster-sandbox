@@ -6,6 +6,7 @@ use monoio::time::sleep;
 use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
 use sdk::models::log_entry::LogEntry;
+use sdk::models::node_state::NodeState;
 use sdk::models::stream::Stream;
 use std::time::Duration;
 use tracing::{error, info};
@@ -125,6 +126,14 @@ impl Node {
         }
 
         self.client.get_streams().await
+    }
+
+    pub async fn get_node_state(&self) -> Result<NodeState, SystemError> {
+        if self.is_self_node() {
+            return Ok(NodeState::default());
+        }
+
+        self.client.get_node_state().await
     }
 
     pub async fn append_entry(
