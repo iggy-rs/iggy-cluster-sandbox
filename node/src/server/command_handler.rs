@@ -30,6 +30,9 @@ pub async fn handle(
         Command::UpdateLeader(command) => {
             update_leader_handler::handle(handler, command, cluster).await?;
         }
+        Command::GetNodeState(_) => {
+            get_node_state_handler::handle(handler, cluster).await?;
+        }
         Command::GetMetadata(_) => {
             get_metadata_handler::handle(handler, cluster).await?;
         }

@@ -8,6 +8,7 @@ use monoio::time::sleep;
 use sdk::bytes_serializable::BytesSerializable;
 use sdk::commands::append_entries::AppendEntries;
 use sdk::commands::append_messages::AppendableMessage;
+use sdk::commands::get_node_state::GetNodeState;
 use sdk::commands::get_streams::GetStreams;
 use sdk::commands::heartbeat::Heartbeat;
 use sdk::commands::hello::Hello;
@@ -290,8 +291,22 @@ impl NodeClient {
             self.id, self.address
         );
 
-        // TODO: Implement the get node state command
-        let node_state = NodeState::default();
+        let command = GetNodeState::new_command();
+        let result = self.send_request(&command).await;
+        if result.is_err() {
+            error!(
+                "Failed to send a get node state to cluster node ID: {}, address: {}.",
+                self.id, self.address
+            );
+            return Err(result.unwrap_err());
+        }
+
+        info!(
+            "Received a get node state response from cluster node ID: {}, address: {}.",
+            self.id, self.address
+        );
+
+        let node_state = NodeState::from_bytes(&result.unwrap())?;
         Ok(node_state)
     }
 

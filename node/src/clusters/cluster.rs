@@ -10,6 +10,7 @@ use sdk::error::SystemError;
 use sdk::models::log_entry::LogEntry;
 use sdk::models::message::Message;
 use sdk::models::metadata::{Metadata, NodeInfo, StreamInfo};
+use sdk::models::node_state::NodeState;
 use sdk::models::stream::Stream;
 use std::collections::HashMap;
 use std::fmt::{Display, Formatter};
@@ -428,6 +429,11 @@ impl Cluster {
         }
 
         ClusterState::Healthy
+    }
+
+    pub async fn get_node_state(&self) -> Result<NodeState, SystemError> {
+        // TODO: Implement state retrieval logic
+        Ok(NodeState::default())
     }
 
     pub async fn append_state(

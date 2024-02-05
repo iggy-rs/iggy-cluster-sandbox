@@ -4,6 +4,7 @@ use crate::commands::append_messages::AppendMessages;
 use crate::commands::create_stream::{CreateStream, CREATE_STREAM_CODE};
 use crate::commands::delete_stream::{DeleteStream, DELETE_STREAM_CODE};
 use crate::commands::get_metadata::GetMetadata;
+use crate::commands::get_node_state::GetNodeState;
 use crate::commands::get_streams::GetStreams;
 use crate::commands::heartbeat::Heartbeat;
 use crate::commands::hello::Hello;
@@ -19,7 +20,8 @@ use std::fmt::{Display, Formatter};
 const HELLO_CODE: u32 = 1;
 const HEARTBEAT_CODE: u32 = 2;
 const PING_CODE: u32 = 3;
-const GET_METADATA_CODE: u32 = 4;
+const GET_NODE_STATE_CODE: u32 = 4;
+const GET_METADATA_CODE: u32 = 5;
 const REQUEST_VOTE_CODE: u32 = 10;
 const UPDATE_LEADER_CODE: u32 = 11;
 const SYNC_MESSAGES_CODE: u32 = 20;
@@ -35,6 +37,7 @@ pub enum Command {
     Ping(Ping),
     RequestVote(RequestVote),
     UpdateLeader(UpdateLeader),
+    GetNodeState(GetNodeState),
     GetMetadata(GetMetadata),
     GetStreams(GetStreams),
     CreateStream(CreateStream),
@@ -53,6 +56,7 @@ impl Command {
             Command::Ping(_) => "ping",
             Command::RequestVote(_) => "request_vote",
             Command::UpdateLeader(_) => "update_leader",
+            Command::GetNodeState(_) => "get_state",
             Command::GetMetadata(_) => "get_metadata",
             Command::GetStreams(_) => "get_streams",
             Command::CreateStream(_) => "create_stream",
@@ -71,6 +75,7 @@ impl Command {
             Command::Ping(command) => to_bytes(PING_CODE, command),
             Command::RequestVote(command) => to_bytes(REQUEST_VOTE_CODE, command),
             Command::UpdateLeader(command) => to_bytes(UPDATE_LEADER_CODE, command),
+            Command::GetNodeState(command) => to_bytes(GET_NODE_STATE_CODE, command),
             Command::GetMetadata(command) => to_bytes(GET_METADATA_CODE, command),
             Command::GetStreams(command) => to_bytes(GET_STREAMS_CODE, command),
             Command::CreateStream(command) => to_bytes(CREATE_STREAM_CODE, command),
@@ -92,6 +97,7 @@ impl Command {
             PING_CODE => Ok(Command::Ping(Ping::from_bytes(bytes)?)),
             REQUEST_VOTE_CODE => Ok(Command::RequestVote(RequestVote::from_bytes(bytes)?)),
             UPDATE_LEADER_CODE => Ok(Command::UpdateLeader(UpdateLeader::from_bytes(bytes)?)),
+            GET_NODE_STATE_CODE => Ok(Command::GetNodeState(GetNodeState::from_bytes(bytes)?)),
             GET_METADATA_CODE => Ok(Command::GetMetadata(GetMetadata::from_bytes(bytes)?)),
             GET_STREAMS_CODE => Ok(Command::GetStreams(GetStreams::from_bytes(bytes)?)),
             CREATE_STREAM_CODE => Ok(Command::CreateStream(CreateStream::from_bytes(bytes)?)),
@@ -133,6 +139,7 @@ impl Display for Command {
             Command::UpdateLeader(update_leader) => {
                 write!(f, "Update leader: {}", update_leader.term)
             }
+            Command::GetNodeState(_) => write!(f, "Get node state"),
             Command::GetMetadata(_) => write!(f, "Get metadata"),
             Command::GetStreams(_) => write!(f, "Get streams"),
             Command::CreateStream(create_stream) => {

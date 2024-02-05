@@ -1,9 +1,10 @@
 use crate::clusters::cluster::Cluster;
 use sdk::error::SystemError;
-use tracing::error;
+use tracing::{error, info};
 
 impl Cluster {
     pub async fn sync_nodes_state(&self) -> Result<(), SystemError> {
+        info!("Syncing state from cluster nodes...");
         for node in self.nodes.values() {
             if node.node.is_self_node() {
                 continue;
@@ -22,6 +23,7 @@ impl Cluster {
             // TODO: Implement state sync logic
             let _state = state.unwrap();
         }
+        info!("Synced state from cluster nodes.");
 
         Ok(())
     }
