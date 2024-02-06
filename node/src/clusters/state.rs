@@ -82,6 +82,7 @@ impl State {
                 break;
             }
 
+            // TODO: Load term
             let _term = u64::from_le_bytes(buffer.try_into().unwrap());
             position += 8;
 

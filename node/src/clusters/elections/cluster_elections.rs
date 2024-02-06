@@ -13,9 +13,14 @@ impl Cluster {
             return Err(SystemError::UnhealthyCluster);
         }
 
-        let unhealthy_interval = Duration::from_millis(1000);
         let self_node = self_node.unwrap();
+        let unhealthy_interval = Duration::from_millis(1000);
         loop {
+            if !self_node.node.can_be_leader().await {
+                error!("This node cannot be a leader.");
+                continue;
+            }
+
             if self.verify_is_healthy().await.is_err() {
                 error!("Cluster is unhealthy.");
                 sleep(unhealthy_interval).await;

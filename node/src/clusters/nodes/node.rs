@@ -17,6 +17,7 @@ pub struct Node {
     pub name: String,
     pub address: String,
     pub public_address: String,
+    pub can_be_leader: Mutex<bool>,
     term: Mutex<Term>,
     leader_id: Mutex<Option<NodeId>>,
     heartbeat: NodeHeartbeat,
@@ -56,6 +57,7 @@ impl Node {
             },
             term: Mutex::new(0),
             leader_id: Mutex::new(None),
+            can_be_leader: Mutex::new(true),
             client,
         })
     }
@@ -182,5 +184,13 @@ impl Node {
         }
 
         self.client.is_connected().await
+    }
+
+    pub async fn can_be_leader(&self) -> bool {
+        *self.can_be_leader.lock().await
+    }
+
+    pub async fn set_can_be_leader(&self, can_be_leader: bool) {
+        *self.can_be_leader.lock().await = can_be_leader;
     }
 }

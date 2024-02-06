@@ -80,6 +80,8 @@ pub enum SystemError {
     CannotSyncState,
     #[error("Invalid replication factor: {0}")]
     InvalidReplicationFactor(u8),
+    #[error("Node cannot be leader")]
+    NodeCannotBeLeader,
 }
 
 impl SystemError {
@@ -123,6 +125,7 @@ impl SystemError {
             SystemError::CannotSyncDeletedStream => 36,
             SystemError::CannotSyncState => 37,
             SystemError::InvalidReplicationFactor(_) => 38,
+            SystemError::NodeCannotBeLeader => 39,
         }
     }
 }

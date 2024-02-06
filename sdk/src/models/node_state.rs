@@ -1,6 +1,7 @@
 use crate::bytes_serializable::BytesSerializable;
 use crate::error::SystemError;
 use bytes::BufMut;
+use std::fmt::Display;
 
 #[derive(Debug, Default)]
 pub struct NodeState {
@@ -9,6 +10,16 @@ pub struct NodeState {
     pub term: u64,
     pub commit_index: u64,
     pub last_applied: u64,
+}
+
+impl Display for NodeState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "NodeState {{ id: {}, address: {}, term: {}, commit_index: {}, last_applied: {} }}",
+            self.id, self.address, self.term, self.commit_index, self.last_applied
+        )
+    }
 }
 
 impl BytesSerializable for NodeState {

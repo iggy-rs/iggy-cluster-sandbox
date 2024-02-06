@@ -432,8 +432,21 @@ impl Cluster {
     }
 
     pub async fn get_node_state(&self) -> Result<NodeState, SystemError> {
-        // TODO: Implement state retrieval logic
-        Ok(NodeState::default())
+        let self_node = self.get_self_node();
+        if self_node.is_none() {
+            return Err(SystemError::UnhealthyCluster);
+        }
+
+        let self_node = self_node.unwrap();
+        let state = self.state.lock().await;
+        let node_state = NodeState {
+            id: self_node.node.id,
+            address: self_node.node.address.to_owned(),
+            last_applied: state.last_applied,
+            commit_index: state.commit_index,
+            term: state.term,
+        };
+        Ok(node_state)
     }
 
     pub async fn append_state(
