@@ -118,6 +118,8 @@ impl Cluster {
                     .create_stream(stream.id, 3)
                     .await?;
             }
+
+            // TODO: Sync messages based on high watermark
         }
 
         Ok(())

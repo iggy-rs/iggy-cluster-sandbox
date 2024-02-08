@@ -160,6 +160,8 @@ impl Cluster {
     }
 
     pub async fn init(&self) -> Result<(), SystemError> {
+        let term = self.state.lock().await.term;
+        self.election_manager.set_term(term).await;
         self.connect_to_all_nodes().await?;
         self.sync_nodes_state().await?;
         self.sync_streams_from_other_nodes().await?;
@@ -364,6 +366,7 @@ impl Cluster {
             .map(|stream| Stream {
                 id: stream.stream_id,
                 offset: stream.current_offset,
+                high_watermark: stream.high_watermark,
                 replication_factor: stream.replication_factor,
             })
             .collect();

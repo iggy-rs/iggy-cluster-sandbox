@@ -7,6 +7,7 @@ use std::fmt::{Display, Formatter};
 pub struct Stream {
     pub id: u64,
     pub offset: u64,
+    pub high_watermark: u64,
     pub replication_factor: u8,
 }
 
@@ -14,8 +15,8 @@ impl Display for Stream {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Stream {{ id: {}, offset: {}, replication_factor: {} }}",
-            self.id, self.offset, self.replication_factor
+            "Stream {{ id: {}, offset: {}, high_watermark: {}, replication_factor: {} }}",
+            self.id, self.offset, self.high_watermark, self.replication_factor
         )
     }
 }
@@ -25,6 +26,7 @@ impl BytesSerializable for Stream {
         let mut bytes = Vec::with_capacity(17);
         bytes.put_u64_le(self.id);
         bytes.put_u64_le(self.offset);
+        bytes.put_u64_le(self.high_watermark);
         bytes.put_u8(self.replication_factor);
         bytes
     }
@@ -33,16 +35,18 @@ impl BytesSerializable for Stream {
     where
         Self: Sized,
     {
-        if bytes.len() != 17 {
+        if bytes.len() != 25 {
             return Err(SystemError::InvalidCommand);
         }
 
         let id = u64::from_le_bytes(bytes[0..8].try_into().unwrap());
         let offset = u64::from_le_bytes(bytes[8..16].try_into().unwrap());
-        let replication_factor = bytes[16];
+        let high_watermark = u64::from_le_bytes(bytes[16..24].try_into().unwrap());
+        let replication_factor = bytes[24];
         Ok(Stream {
             id,
             offset,
+            high_watermark,
             replication_factor,
         })
     }

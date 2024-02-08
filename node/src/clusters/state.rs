@@ -82,8 +82,7 @@ impl State {
                 break;
             }
 
-            // TODO: Load term
-            let _term = u64::from_le_bytes(buffer.try_into().unwrap());
+            let term = u64::from_le_bytes(buffer.try_into().unwrap());
             position += 8;
 
             let buffer = vec![0u8; 4];
@@ -107,6 +106,7 @@ impl State {
             position += data_length as u64;
             let entry = LogEntry { index, data };
             self.commit_index = index;
+            self.term = term;
             self.entries.push(entry);
         }
 
