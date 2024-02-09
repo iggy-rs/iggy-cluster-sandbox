@@ -1,11 +1,12 @@
 use crate::clusters::cluster::Cluster;
 use crate::clusters::nodes::node::Node;
+use crate::types::NodeId;
 use sdk::error::SystemError;
 use std::collections::HashMap;
 use tracing::{error, info, warn};
 
 impl Cluster {
-    pub async fn sync_nodes_state(&self) -> Result<(), SystemError> {
+    pub async fn sync_nodes_state(&self) -> Result<Vec<NodeId>, SystemError> {
         let mut states = HashMap::new();
         let self_node = self.get_self_node();
         if self_node.is_none() {
@@ -43,25 +44,38 @@ impl Cluster {
             nodes.push(node_id);
         }
 
+        let mut available_leaders = Vec::new();
         let self_node = self_node.unwrap();
         if nodes_by_last_applied.is_empty() {
             info!("This node cannot be a leader because there are no other nodes in the cluster.");
             set_leader_unavailable(&self_node.node).await;
-            return Ok(());
+            return Ok(available_leaders);
         }
 
         if states.iter().all(|(_, state)| state.last_applied == 0) {
             info!("This node can be a leader because it's state is initial state of the cluster.");
             set_leader_available(&self_node.node).await;
-            return Ok(());
+            for node in self.nodes.values() {
+                available_leaders.push(node.node.id);
+            }
+            return Ok(available_leaders);
         }
 
         let min_last_applied = *nodes_by_last_applied.keys().min().unwrap();
         let self_state = self.get_node_state().await.unwrap();
+        for (_, nodes) in nodes_by_last_applied
+            .iter()
+            .filter(|(last_applied, _)| *last_applied >= &min_last_applied)
+        {
+            for node_id in nodes {
+                available_leaders.push(**node_id);
+            }
+        }
+
         if self_state.last_applied < min_last_applied {
             set_leader_unavailable(&self_node.node).await;
             warn!("This node cannot be a leader because it's state is behind other nodes, last applied: {} < {}", self_state.last_applied, min_last_applied);
-            return Ok(());
+            return Ok(available_leaders);
         }
 
         let nodes_with_lower_last_applied = nodes_by_last_applied
@@ -79,7 +93,7 @@ impl Cluster {
         if nodes_with_lower_last_applied + nodes_with_same_last_applied < quorum {
             set_leader_unavailable(&self_node.node).await;
             warn!("This node cannot be a leader because it's state is behind other nodes, last applied: {} < {}", self_state.last_applied, min_last_applied);
-            return Ok(());
+            return Ok(available_leaders);
         }
 
         let all_last_applied_states = states
@@ -89,7 +103,7 @@ impl Cluster {
             .join(", ");
         set_leader_available(&self_node.node).await;
         info!("This node can be a leader because it's state: {} is up to date with other nodes, all last applied states by nodes: {all_last_applied_states}", self_state.last_applied);
-        Ok(())
+        Ok(available_leaders)
     }
 }
 

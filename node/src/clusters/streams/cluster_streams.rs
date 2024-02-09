@@ -1,6 +1,6 @@
 use crate::clusters::cluster::Cluster;
 use crate::connection::handler::ConnectionHandler;
-use crate::types::Term;
+use crate::types::{NodeId, Term};
 use sdk::commands::create_stream::CreateStream;
 use sdk::commands::delete_stream::DeleteStream;
 use sdk::error::SystemError;
@@ -92,9 +92,17 @@ impl Cluster {
         Ok(())
     }
 
-    pub async fn sync_streams_from_other_nodes(&self) -> Result<(), SystemError> {
+    pub async fn sync_streams_from_other_nodes(
+        &self,
+        available_leaders: &[NodeId],
+    ) -> Result<(), SystemError> {
         for node in self.nodes.values() {
             if node.node.is_self_node() {
+                continue;
+            }
+
+            let node_id = node.node.id;
+            if !available_leaders.contains(&node_id) {
                 continue;
             }
 
@@ -108,18 +116,21 @@ impl Cluster {
                 continue;
             }
 
-            let node_id = node.node.id;
             let streams = streams.unwrap();
             for stream in streams {
                 info!("Syncing stream: {stream} from cluster node with ID: {node_id}");
-                self.streamer
-                    .lock()
-                    .await
-                    .create_stream(stream.id, 3)
-                    .await?;
-            }
+                let mut streamer = self.streamer.lock().await;
+                streamer.create_stream(stream.id, 3).await?;
+                let self_stream = streamer.get_stream(stream.id).unwrap();
+                if self_stream.high_watermark == stream.high_watermark {
+                    info!(
+                        "Stream: {stream} is already in sync with cluster node with ID: {node_id}"
+                    );
+                    continue;
+                }
 
-            // TODO: Sync messages based on high watermark
+                // TODO: Sync messages based on high watermark
+            }
         }
 
         Ok(())

@@ -163,8 +163,17 @@ impl Cluster {
         let term = self.state.lock().await.term;
         self.election_manager.set_term(term).await;
         self.connect_to_all_nodes().await?;
-        self.sync_nodes_state().await?;
-        self.sync_streams_from_other_nodes().await?;
+        let available_leaders = self.sync_nodes_state().await?;
+        info!(
+            "Available leaders: {}",
+            available_leaders
+                .iter()
+                .map(|id| id.to_string())
+                .collect::<Vec<String>>()
+                .join(", ")
+        );
+        self.sync_streams_from_other_nodes(&available_leaders)
+            .await?;
         Ok(())
     }
 
