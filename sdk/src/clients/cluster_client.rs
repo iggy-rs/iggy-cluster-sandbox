@@ -9,10 +9,9 @@ use crate::commands::get_streams::GetStreams;
 use crate::commands::ping::Ping;
 use crate::commands::poll_messages::PollMessages;
 use crate::error::SystemError;
-use crate::models::message::Message;
+use crate::models::message::{messages_from_bytes, Message};
 use crate::models::metadata::Metadata;
 use crate::models::stream::Stream;
-use bytes::Bytes;
 use futures::lock::Mutex;
 use monoio::time::sleep;
 use std::collections::HashMap;
@@ -107,23 +106,7 @@ impl ClusterClient {
         let leader_address = self.get_leader_address().await?;
         let command = PollMessages::new_command(stream_id, offset, count);
         let bytes = self.send(&command, &leader_address).await?;
-        let mut messages = Vec::new();
-        let mut position = 0;
-        while position < bytes.len() {
-            let offset = u64::from_le_bytes(bytes[position..position + 8].try_into().unwrap());
-            let id = u64::from_le_bytes(bytes[position + 8..position + 16].try_into().unwrap());
-            let payload_length =
-                u32::from_le_bytes(bytes[position + 16..position + 20].try_into().unwrap());
-            let payload =
-                Bytes::from(bytes[position + 20..position + 20 + payload_length as usize].to_vec());
-            position += 20 + payload_length as usize;
-            let message = Message {
-                offset,
-                id,
-                payload,
-            };
-            messages.push(message);
-        }
+        let messages = messages_from_bytes(&bytes);
         Ok(messages)
     }
 

@@ -72,6 +72,27 @@ impl BytesSerializable for Message {
     }
 }
 
+pub fn messages_from_bytes(bytes: &[u8]) -> Vec<Message> {
+    let mut messages = Vec::new();
+    let mut position = 0;
+    while position < bytes.len() {
+        let offset = u64::from_le_bytes(bytes[position..position + 8].try_into().unwrap());
+        let id = u64::from_le_bytes(bytes[position + 8..position + 16].try_into().unwrap());
+        let payload_length =
+            u32::from_le_bytes(bytes[position + 16..position + 20].try_into().unwrap());
+        let payload =
+            Bytes::from(bytes[position + 20..position + 20 + payload_length as usize].to_vec());
+        position += 20 + payload_length as usize;
+        let message = Message {
+            offset,
+            id,
+            payload,
+        };
+        messages.push(message);
+    }
+    messages
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

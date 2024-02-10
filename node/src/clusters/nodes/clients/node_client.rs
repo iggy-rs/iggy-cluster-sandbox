@@ -12,11 +12,13 @@ use sdk::commands::get_node_state::GetNodeState;
 use sdk::commands::get_streams::GetStreams;
 use sdk::commands::heartbeat::Heartbeat;
 use sdk::commands::hello::Hello;
+use sdk::commands::poll_messages::PollMessages;
 use sdk::commands::request_vote::RequestVote;
 use sdk::commands::sync_messages::SyncMessages;
 use sdk::commands::update_leader::UpdateLeader;
 use sdk::error::SystemError;
 use sdk::models::log_entry::LogEntry;
+use sdk::models::message::{messages_from_bytes, Message};
 use sdk::models::node_state::NodeState;
 use sdk::models::stream::Stream;
 use std::net::SocketAddr;
@@ -370,6 +372,18 @@ impl NodeClient {
             self.id, self.address, term
         );
         Ok(())
+    }
+
+    pub async fn poll_messages(
+        &self,
+        stream_id: u64,
+        offset: u64,
+        count: u64,
+    ) -> Result<Vec<Message>, SystemError> {
+        let command = PollMessages::new_command(stream_id, offset, count);
+        let bytes = self.send_request(&command).await?;
+        let messages = messages_from_bytes(&bytes);
+        Ok(messages)
     }
 
     pub async fn is_connected(&self) -> bool {

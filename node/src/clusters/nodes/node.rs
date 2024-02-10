@@ -6,6 +6,7 @@ use monoio::time::sleep;
 use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
 use sdk::models::log_entry::LogEntry;
+use sdk::models::message::Message;
 use sdk::models::node_state::NodeState;
 use sdk::models::stream::Stream;
 use std::time::Duration;
@@ -168,6 +169,19 @@ impl Node {
         self.client
             .sync_messages(term, stream_id, current_offset, messages)
             .await
+    }
+
+    pub async fn poll_messages(
+        &self,
+        stream_id: u64,
+        offset: u64,
+        count: u64,
+    ) -> Result<Vec<Message>, SystemError> {
+        if self.is_self_node() {
+            return Ok(Vec::new());
+        }
+
+        self.client.poll_messages(stream_id, offset, count).await
     }
 
     pub async fn disconnect(&self) -> Result<(), SystemError> {

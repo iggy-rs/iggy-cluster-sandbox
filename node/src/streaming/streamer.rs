@@ -29,6 +29,10 @@ impl Streamer {
         self.streams.get(&id)
     }
 
+    pub fn get_stream_mut(&mut self, id: u64) -> Option<&mut Stream> {
+        self.streams.get_mut(&id)
+    }
+
     pub fn get_streams(&self) -> Vec<&Stream> {
         self.streams.values().collect::<Vec<&Stream>>()
     }
@@ -135,7 +139,7 @@ impl Streamer {
         }
 
         let stream = stream.unwrap();
-        stream.reset_offset(offset).await
+        stream.reset_offset(offset);
     }
 
     pub(crate) fn poll_messages(

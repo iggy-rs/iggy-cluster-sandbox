@@ -253,7 +253,11 @@ impl Stream {
         Ok(())
     }
 
-    pub async fn reset_offset(&mut self, offset: u64) {
+    pub fn set_offset(&mut self, offset: u64) {
+        self.current_offset = offset;
+    }
+
+    pub fn reset_offset(&mut self, offset: u64) {
         self.current_offset = offset;
     }
 

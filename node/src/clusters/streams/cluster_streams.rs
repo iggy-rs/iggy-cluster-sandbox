@@ -121,7 +121,7 @@ impl Cluster {
                 info!("Syncing stream: {stream} from cluster node with ID: {node_id}");
                 let mut streamer = self.streamer.lock().await;
                 streamer.create_stream(stream.id, 3).await?;
-                let self_stream = streamer.get_stream(stream.id).unwrap();
+                let self_stream = streamer.get_stream_mut(stream.id).unwrap();
                 if self_stream.high_watermark == stream.high_watermark {
                     info!(
                         "Stream: {stream} is already in sync with cluster node with ID: {node_id}"
@@ -129,7 +129,33 @@ impl Cluster {
                     continue;
                 }
 
-                // TODO: Sync messages based on high watermark
+                if self_stream.high_watermark > stream.high_watermark {
+                    info!(
+                        "Stream: {stream} is ahead of cluster node with ID: {node_id} and will be truncated."
+                    );
+                    self_stream.truncate_stream(stream.high_watermark)?;
+                }
+
+                let offset = self_stream.high_watermark + 1;
+                let count = stream.high_watermark - self_stream.high_watermark;
+                info!(
+                    "Polling messages for stream: {stream} from cluster node with ID: {node_id}, offset: {offset}, count: {count}..."
+                );
+                let messages = node.node.poll_messages(stream.id, offset, count).await;
+                if messages.is_err() {
+                    let error = messages.unwrap_err();
+                    error!(
+                        "Failed to poll messages for stream: {stream} from cluster node with ID: {node_id}, {error}",
+                    );
+                    continue;
+                }
+                let messages = messages.unwrap();
+                info!(
+                    "Successfully polled {} messages for stream: {stream} from cluster node with ID: {node_id}", messages.len()
+                );
+                self_stream.commit_messages(messages).await?;
+                self_stream.set_offset(stream.high_watermark);
+                self_stream.set_high_watermark(stream.high_watermark).await;
             }
         }
 
