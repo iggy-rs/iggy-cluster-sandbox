@@ -96,6 +96,7 @@ impl Cluster {
         &self,
         available_leaders: &[NodeId],
     ) -> Result<(), SystemError> {
+        let mut completed = false;
         for node in self.nodes.values() {
             if node.node.is_self_node() {
                 continue;
@@ -110,13 +111,18 @@ impl Cluster {
             if streams.is_err() {
                 let error = streams.unwrap_err();
                 error!(
-                    "Failed to sync streams from cluster node with ID: {}, {error}",
+                    "Failed to get streams from cluster node with ID: {}, {error}",
                     node.node.id
                 );
                 continue;
             }
 
             let streams = streams.unwrap();
+            if streams.is_empty() {
+                completed = true;
+                continue;
+            }
+
             for stream in streams {
                 info!("Syncing stream: {stream} from cluster node with ID: {node_id}");
                 let mut streamer = self.streamer.lock().await;
@@ -126,6 +132,7 @@ impl Cluster {
                     info!(
                         "Stream: {stream} is already in sync with cluster node with ID: {node_id}"
                     );
+                    completed = true;
                     continue;
                 }
 
@@ -156,9 +163,17 @@ impl Cluster {
                 self_stream.commit_messages(messages).await?;
                 self_stream.set_offset(stream.high_watermark);
                 self_stream.set_high_watermark(stream.high_watermark).await;
+                completed = true;
             }
         }
 
+        if !completed {
+            return Err(SystemError::CannotSyncStreams);
+        }
+
+        let self_node = self.get_self_node().unwrap();
+        self_node.node.complete_initial_sync().await;
+        info!("Successfully synced streams from other nodes.");
         Ok(())
     }
 }

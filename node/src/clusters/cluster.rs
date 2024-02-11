@@ -6,6 +6,7 @@ use crate::streaming::streamer::Streamer;
 use crate::types::{Index, NodeId};
 use bytes::Bytes;
 use futures::lock::Mutex;
+use monoio::time::sleep;
 use sdk::error::SystemError;
 use sdk::models::log_entry::LogEntry;
 use sdk::models::message::Message;
@@ -174,6 +175,7 @@ impl Cluster {
         );
         self.sync_streams_from_other_nodes(&available_leaders)
             .await?;
+        self.wait_for_all_nodes_to_complete_initial_sync().await?;
         Ok(())
     }
 
@@ -196,6 +198,42 @@ impl Cluster {
         }
 
         info!("All cluster nodes connected.");
+        Ok(())
+    }
+
+    async fn wait_for_all_nodes_to_complete_initial_sync(&self) -> Result<(), SystemError> {
+        info!("Waiting for all nodes to complete initial sync...");
+        let mut synced_nodes = 0;
+        for node in self.nodes.values() {
+            if node.node.is_self_node() {
+                continue;
+            }
+
+            if !node.node.is_connected().await {
+                continue;
+            }
+
+            loop {
+                let state = node.node.get_node_state().await?;
+                if state.initial_sync_completed {
+                    node.node.complete_initial_sync().await;
+                    synced_nodes += 1;
+                    break;
+                }
+                sleep(Duration::from_millis(100)).await;
+            }
+        }
+
+        if synced_nodes < self.get_quorum_count() {
+            error!(
+                "Not enough cluster nodes completed initial sync. Expected: {}, actual: {}",
+                self.get_quorum_count(),
+                synced_nodes
+            );
+            return Err(SystemError::UnhealthyCluster);
+        }
+
+        info!("All nodes completed initial sync.");
         Ok(())
     }
 
@@ -457,6 +495,12 @@ impl Cluster {
             last_applied: state.last_applied,
             commit_index: state.commit_index,
             term: state.term,
+            initial_sync_completed: self
+                .get_self_node()
+                .unwrap()
+                .node
+                .initial_sync_completed()
+                .await,
         };
         Ok(node_state)
     }

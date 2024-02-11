@@ -19,6 +19,7 @@ pub struct Node {
     pub address: String,
     pub public_address: String,
     pub can_be_leader: Mutex<bool>,
+    initial_sync_completed: Mutex<bool>,
     term: Mutex<Term>,
     leader_id: Mutex<Option<NodeId>>,
     heartbeat: NodeHeartbeat,
@@ -59,6 +60,7 @@ impl Node {
             term: Mutex::new(0),
             leader_id: Mutex::new(None),
             can_be_leader: Mutex::new(true),
+            initial_sync_completed: Mutex::new(false),
             client,
         })
     }
@@ -206,5 +208,13 @@ impl Node {
 
     pub async fn set_can_be_leader(&self, can_be_leader: bool) {
         *self.can_be_leader.lock().await = can_be_leader;
+    }
+
+    pub async fn initial_sync_completed(&self) -> bool {
+        *self.initial_sync_completed.lock().await
+    }
+
+    pub async fn complete_initial_sync(&self) {
+        *self.initial_sync_completed.lock().await = true;
     }
 }

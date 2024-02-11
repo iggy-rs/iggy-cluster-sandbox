@@ -6,6 +6,8 @@ use thiserror::Error;
 pub enum SystemError {
     #[error("Unhealthy cluster")]
     UnhealthyCluster,
+    #[error("Cannot sync streams")]
+    CannotSyncStreams,
     #[error("Invalid cluster secret")]
     InvalidClusterSecret,
     #[error("IO error")]
@@ -126,6 +128,7 @@ impl SystemError {
             SystemError::CannotSyncState => 37,
             SystemError::InvalidReplicationFactor(_) => 38,
             SystemError::NodeCannotBeLeader => 39,
+            SystemError::CannotSyncStreams => 40,
         }
     }
 }

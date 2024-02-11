@@ -1,7 +1,7 @@
 use crate::bytes_serializable::BytesSerializable;
 use crate::error::SystemError;
 use bytes::BufMut;
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Default)]
 pub struct NodeState {
@@ -10,14 +10,15 @@ pub struct NodeState {
     pub term: u64,
     pub commit_index: u64,
     pub last_applied: u64,
+    pub initial_sync_completed: bool,
 }
 
 impl Display for NodeState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "NodeState {{ id: {}, address: {}, term: {}, commit_index: {}, last_applied: {} }}",
-            self.id, self.address, self.term, self.commit_index, self.last_applied
+            "NodeState {{ id: {}, address: {}, term: {}, commit_index: {}, last_applied: {}, initial_sync_completed: {} }}",
+            self.id, self.address, self.term, self.commit_index, self.last_applied, self.initial_sync_completed
         )
     }
 }
@@ -31,6 +32,7 @@ impl BytesSerializable for NodeState {
         bytes.put_u64_le(self.term);
         bytes.put_u64_le(self.commit_index);
         bytes.put_u64_le(self.last_applied);
+        bytes.put_u8(self.initial_sync_completed as u8);
         bytes
     }
 
@@ -38,7 +40,7 @@ impl BytesSerializable for NodeState {
     where
         Self: Sized,
     {
-        if bytes.len() < 25 {
+        if bytes.len() < 34 {
             return Err(SystemError::InvalidCommand);
         }
 
@@ -50,12 +52,14 @@ impl BytesSerializable for NodeState {
             u64::from_le_bytes(bytes[17 + address_length..25 + address_length].try_into()?);
         let last_applied =
             u64::from_le_bytes(bytes[25 + address_length..33 + address_length].try_into()?);
+        let initial_sync_completed = bytes[33 + address_length] == 1;
         Ok(NodeState {
             id,
             address,
             term,
             commit_index,
             last_applied,
+            initial_sync_completed,
         })
     }
 }
