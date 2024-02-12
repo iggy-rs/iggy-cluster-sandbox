@@ -33,6 +33,9 @@ pub async fn handle(
         Command::GetNodeState(_) => {
             get_node_state_handler::handle(handler, cluster).await?;
         }
+        Command::LoadState(command) => {
+            load_state_handler::handle(handler, command, cluster).await?;
+        }
         Command::GetMetadata(_) => {
             get_metadata_handler::handle(handler, cluster).await?;
         }

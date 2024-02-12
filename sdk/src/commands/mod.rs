@@ -8,6 +8,7 @@ pub mod get_node_state;
 pub mod get_streams;
 pub mod heartbeat;
 pub mod hello;
+pub mod load_state;
 pub mod ping;
 pub mod poll_messages;
 pub mod request_vote;
