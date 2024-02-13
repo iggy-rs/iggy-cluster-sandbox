@@ -50,6 +50,7 @@ impl Cluster {
 
             let entries = vec![LogEntry {
                 index: log_entry.index,
+                size: log_entry.size,
                 data: log_entry.data.clone(),
             }];
             if let Err(error) = node

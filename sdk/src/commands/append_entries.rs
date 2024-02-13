@@ -59,7 +59,7 @@ impl BytesSerializable for AppendEntries {
         let mut position = 40;
         while position < bytes.len() {
             let entry = LogEntry::from_bytes(&bytes[position..])?;
-            position += 8 + entry.data.len();
+            position += 12 + entry.data.len();
             entries.push(entry);
         }
         Ok(AppendEntries {

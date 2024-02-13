@@ -92,10 +92,10 @@ impl State {
                 break;
             }
 
-            let data_length = u32::from_le_bytes(buffer.try_into().unwrap());
+            let size = u32::from_le_bytes(buffer.try_into().unwrap());
             position += 4;
 
-            let buffer = vec![0; data_length as usize];
+            let buffer = vec![0; size as usize];
             let (data_result, data) = file.read_exact_at(buffer, position).await;
             if data_result.is_err() {
                 error!("Failed to read payload");
@@ -103,8 +103,8 @@ impl State {
             }
 
             let data = Bytes::from(data);
-            position += data_length as u64;
-            let entry = LogEntry { index, data };
+            position += size as u64;
+            let entry = LogEntry { index, size, data };
             self.commit_index = index;
             self.term = term;
             self.entries.push(entry);
@@ -130,10 +130,12 @@ impl State {
         }
         let entry = LogEntry {
             index: self.commit_index,
+            size: payload.len() as u32,
             data: payload.clone(),
         };
         self.sync(LogEntry {
             index: self.commit_index,
+            size: payload.len() as u32,
             data: payload,
         })
         .await?;

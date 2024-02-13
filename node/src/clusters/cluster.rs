@@ -8,6 +8,7 @@ use bytes::Bytes;
 use futures::lock::Mutex;
 use monoio::time::sleep;
 use sdk::error::SystemError;
+use sdk::models::appended_state::AppendedState;
 use sdk::models::log_entry::LogEntry;
 use sdk::models::message::Message;
 use sdk::models::metadata::{Metadata, NodeInfo, StreamInfo};
@@ -505,6 +506,28 @@ impl Cluster {
         Ok(node_state)
     }
 
+    pub async fn load_appended_state(
+        &self,
+        start_index: u64,
+    ) -> Result<AppendedState, SystemError> {
+        let state = self.state.lock().await;
+        let appended_state = AppendedState {
+            term: state.term,
+            last_applied: state.last_applied,
+            entries: state
+                .entries
+                .iter()
+                .filter(|entry| entry.index >= start_index)
+                .map(|entry| LogEntry {
+                    index: entry.index,
+                    size: entry.data.len() as u32,
+                    data: entry.data.clone(),
+                })
+                .collect(),
+        };
+        Ok(appended_state)
+    }
+
     pub async fn append_state(
         &self,
         payload: Bytes,
@@ -548,6 +571,7 @@ impl Cluster {
         state
             .sync(LogEntry {
                 index: entry.index,
+                size: entry.size,
                 data: entry.data.clone(),
             })
             .await?;
