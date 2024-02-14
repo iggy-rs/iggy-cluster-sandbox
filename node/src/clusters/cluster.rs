@@ -174,7 +174,7 @@ impl Cluster {
                 .collect::<Vec<String>>()
                 .join(", ")
         );
-        self.sync_streams_from_other_nodes(&available_leaders)
+        self.sync_state_and_streams_from_other_nodes(&available_leaders)
             .await?;
         self.wait_for_all_nodes_to_complete_initial_sync().await?;
         Ok(())

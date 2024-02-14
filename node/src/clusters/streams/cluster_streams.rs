@@ -92,11 +92,14 @@ impl Cluster {
         Ok(())
     }
 
-    pub async fn sync_streams_from_other_nodes(
+    pub async fn sync_state_and_streams_from_other_nodes(
         &self,
         available_leaders: &[NodeId],
     ) -> Result<(), SystemError> {
-        let mut completed = false;
+        let mut completed = true;
+        let self_state = self.get_node_state().await?;
+        let last_applied = self_state.last_applied;
+        let start_index = last_applied + 1;
         for node in self.nodes.values() {
             if node.node.is_self_node() {
                 continue;
@@ -114,7 +117,24 @@ impl Cluster {
                     "Failed to get streams from cluster node with ID: {}, {error}",
                     node.node.id
                 );
+                completed = false;
                 continue;
+            }
+
+            let loaded_state = node.node.load_state(start_index).await;
+            if loaded_state.is_err() {
+                let error = loaded_state.unwrap_err();
+                error!(
+                    "Failed to load state from cluster node with ID: {}, {error}",
+                    node.node.id
+                );
+                completed = false;
+                continue;
+            }
+
+            let loaded_state = loaded_state.unwrap();
+            if loaded_state.last_applied > last_applied {
+                // TODO: Handle appended state
             }
 
             let streams = streams.unwrap();
@@ -154,6 +174,7 @@ impl Cluster {
                     error!(
                         "Failed to poll messages for stream: {stream} from cluster node with ID: {node_id}, {error}",
                     );
+                    completed = false;
                     continue;
                 }
                 let messages = messages.unwrap();

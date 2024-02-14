@@ -5,6 +5,7 @@ use futures::lock::Mutex;
 use monoio::time::sleep;
 use sdk::commands::append_messages::AppendableMessage;
 use sdk::error::SystemError;
+use sdk::models::appended_state::AppendedState;
 use sdk::models::log_entry::LogEntry;
 use sdk::models::message::Message;
 use sdk::models::node_state::NodeState;
@@ -131,6 +132,14 @@ impl Node {
         }
 
         self.client.get_streams().await
+    }
+
+    pub async fn load_state(&self, start_index: Index) -> Result<AppendedState, SystemError> {
+        if self.is_self_node() {
+            return Ok(AppendedState::default());
+        }
+
+        self.client.load_state(start_index).await
     }
 
     pub async fn get_node_state(&self) -> Result<NodeState, SystemError> {

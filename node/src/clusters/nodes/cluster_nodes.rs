@@ -109,7 +109,6 @@ impl Cluster {
 
 async fn set_leader_unavailable(node: &Node) {
     node.set_can_be_leader(false).await;
-    // TODO: Handle data sync
 }
 
 async fn set_leader_available(node: &Node) {

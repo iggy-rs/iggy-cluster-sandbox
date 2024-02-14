@@ -3,7 +3,7 @@ use crate::error::SystemError;
 use crate::models::log_entry::LogEntry;
 use bytes::{BufMut, Bytes};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct AppendedState {
     pub term: u64,
     pub last_applied: u64,

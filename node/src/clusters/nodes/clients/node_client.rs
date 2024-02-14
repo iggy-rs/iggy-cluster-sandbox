@@ -12,11 +12,13 @@ use sdk::commands::get_node_state::GetNodeState;
 use sdk::commands::get_streams::GetStreams;
 use sdk::commands::heartbeat::Heartbeat;
 use sdk::commands::hello::Hello;
+use sdk::commands::load_state::LoadState;
 use sdk::commands::poll_messages::PollMessages;
 use sdk::commands::request_vote::RequestVote;
 use sdk::commands::sync_messages::SyncMessages;
 use sdk::commands::update_leader::UpdateLeader;
 use sdk::error::SystemError;
+use sdk::models::appended_state::AppendedState;
 use sdk::models::log_entry::LogEntry;
 use sdk::models::message::{messages_from_bytes, Message};
 use sdk::models::node_state::NodeState;
@@ -310,6 +312,31 @@ impl NodeClient {
 
         let node_state = NodeState::from_bytes(&result.unwrap())?;
         Ok(node_state)
+    }
+
+    pub async fn load_state(&self, start_index: Index) -> Result<AppendedState, SystemError> {
+        info!(
+            "Sending a load state to cluster node ID: {}, address: {}...",
+            self.id, self.address
+        );
+
+        let command = LoadState::new_command(start_index);
+        let result = self.send_request(&command).await;
+        if result.is_err() {
+            error!(
+                "Failed to send a load state to cluster node ID: {}, address: {}.",
+                self.id, self.address
+            );
+            return Err(result.unwrap_err());
+        }
+
+        info!(
+            "Received a load state response from cluster node ID: {}, address: {}.",
+            self.id, self.address
+        );
+
+        let appended_state = AppendedState::from_bytes(&result.unwrap())?;
+        Ok(appended_state)
     }
 
     pub async fn append_entries(
