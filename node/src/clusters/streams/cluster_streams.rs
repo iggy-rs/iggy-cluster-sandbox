@@ -4,7 +4,8 @@ use crate::types::{NodeId, Term};
 use sdk::commands::create_stream::CreateStream;
 use sdk::commands::delete_stream::DeleteStream;
 use sdk::error::SystemError;
-use tracing::{error, info};
+use std::cmp::Ordering;
+use tracing::{error, info, warn};
 
 impl Cluster {
     pub async fn create_stream(
@@ -121,20 +122,45 @@ impl Cluster {
                 continue;
             }
 
-            let loaded_state = node.node.load_state(start_index).await;
-            if loaded_state.is_err() {
-                let error = loaded_state.unwrap_err();
+            let node_state = node.node.get_node_state().await;
+            if node_state.is_err() {
+                let error = node_state.unwrap_err();
                 error!(
-                    "Failed to load state from cluster node with ID: {}, {error}",
+                    "Failed to get node state from cluster node with ID: {}, {error}",
                     node.node.id
                 );
                 completed = false;
                 continue;
             }
 
-            let loaded_state = loaded_state.unwrap();
-            if loaded_state.last_applied > last_applied {
-                // TODO: Handle appended state
+            let node_state = node_state.unwrap();
+            match last_applied.cmp(&node_state.last_applied) {
+                Ordering::Less => {
+                    warn!(
+                        "This node is ahead of cluster node with ID: {node_id} and will be truncated."
+                    );
+                    completed = false;
+                }
+                Ordering::Equal => {
+                    info!("This node and cluster node with ID: {node_id} are in sync.");
+                }
+                Ordering::Greater => {
+                    let loaded_state = node.node.load_state(start_index).await;
+                    if loaded_state.is_err() {
+                        let error = loaded_state.unwrap_err();
+                        error!(
+                            "Failed to load state from cluster node with ID: {}, {error}",
+                            node.node.id
+                        );
+                        completed = false;
+                        continue;
+                    }
+
+                    let loaded_state = loaded_state.unwrap();
+                    for entry in loaded_state.entries {
+                        self.append_entry(&entry).await?;
+                    }
+                }
             }
 
             let streams = streams.unwrap();
