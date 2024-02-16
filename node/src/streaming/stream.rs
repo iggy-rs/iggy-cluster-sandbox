@@ -151,7 +151,7 @@ impl Stream {
                 self.current_position = position;
                 self.current_offset = self.messages.len() as u64 - 1;
                 self.current_id = self.messages.iter().max_by_key(|m| m.id).unwrap().id;
-                if self.truncate_stream(self.current_position).is_err() {
+                if self.truncate_stream(self.current_position).await.is_err() {
                     error!("Failed to truncate stream file: {}", self.log_path);
                     return;
                 }
@@ -166,18 +166,66 @@ impl Stream {
         );
     }
 
-    pub fn truncate_stream(&mut self, size: u64) -> Result<(), SystemError> {
-        let file = std::fs::File::open(&self.log_path)?;
-        let file_size = file.metadata()?.len();
-        if file_size <= size {
+    pub async fn truncate_stream(&mut self, high_watermark: u64) -> Result<(), SystemError> {
+        let file_size = std::fs::metadata(&self.log_path)?.len();
+        let mut position = 0u64;
+
+        {
+            let file = file::open(&self.log_path)
+                .await
+                .unwrap_or_else(|_| panic!("Failed to read stream file: {}", self.log_path));
+
+            loop {
+                let buffer = vec![0u8; 8];
+                let (result, buffer) = file.read_exact_at(buffer, position).await;
+                if result.is_err() {
+                    break;
+                }
+
+                let offset = u64::from_le_bytes(buffer.try_into().unwrap());
+                position += 8;
+                if offset == high_watermark {
+                    break;
+                }
+
+                let buffer = vec![0u8; 8];
+                let (result, buffer) = file.read_exact_at(buffer, position).await;
+                if result.is_err() {
+                    break;
+                }
+                let _id = u64::from_le_bytes(buffer.try_into().unwrap());
+                position += 8;
+
+                let buffer = vec![0u8; 4];
+                let payload_length = file.read_exact_at(buffer, position).await;
+                if payload_length.0.is_err() {
+                    error!("Failed to read payload length");
+                    break;
+                }
+
+                let payload_length = u32::from_le_bytes(payload_length.1.try_into().unwrap());
+                position += 4;
+                let buffer = vec![0; payload_length as usize];
+                let payload = file.read_exact_at(buffer, position).await;
+                if payload.0.is_err() {
+                    error!("Failed to read payload");
+                    break;
+                }
+
+                position += payload_length as u64;
+            }
+        }
+
+        if file_size <= position {
             return Ok(());
         }
 
         info!(
-            "Truncating stream with ID: {}, path: {}, from: {file_size} bytes to {size} bytes...",
+            "Truncating stream with ID: {}, path: {}, from: {file_size} bytes to {position} bytes...",
             self.stream_id, self.log_path
         );
-        file.set_len(size)?;
+        let file = std::fs::File::open(&self.log_path)?;
+        file.set_len(high_watermark)?;
         Ok(())
     }
 

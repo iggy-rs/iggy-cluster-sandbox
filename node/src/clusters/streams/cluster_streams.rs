@@ -140,6 +140,8 @@ impl Cluster {
                         "This node is ahead of cluster node with ID: {node_id} and will be truncated."
                     );
                     completed = false;
+                    let state = self.state.lock().await;
+                    state.truncate(start_index).await?;
                 }
                 Ordering::Equal => {
                     info!("This node and cluster node with ID: {node_id} are in sync.");
@@ -186,7 +188,7 @@ impl Cluster {
                     info!(
                         "Stream: {stream} is ahead of cluster node with ID: {node_id} and will be truncated."
                     );
-                    self_stream.truncate_stream(stream.high_watermark)?;
+                    self_stream.truncate_stream(stream.high_watermark).await?;
                 }
 
                 let offset = self_stream.high_watermark + 1;

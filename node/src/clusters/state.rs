@@ -46,6 +46,13 @@ impl State {
         }
     }
 
+    pub async fn truncate(&self, _index: Index) -> Result<(), SystemError> {
+        let file = std::fs::File::open(&self.log_path)?;
+        let _file_size = file.metadata()?.len();
+        // TODO: Implement truncate
+        Ok(())
+    }
+
     pub async fn init(&mut self) {
         if !Path::new(&self.directory_path).exists() {
             create_dir_all(&self.directory_path).unwrap_or_else(|_| {
