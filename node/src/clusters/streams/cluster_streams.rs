@@ -188,7 +188,7 @@ impl Cluster {
                     info!(
                         "Stream: {stream} is ahead of cluster node with ID: {node_id} and will be truncated."
                     );
-                    self_stream.truncate_stream(stream.high_watermark).await?;
+                    self_stream.truncate(stream.high_watermark).await?;
                 }
 
                 let offset = self_stream.high_watermark + 1;

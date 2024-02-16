@@ -151,7 +151,7 @@ impl Stream {
                 self.current_position = position;
                 self.current_offset = self.messages.len() as u64 - 1;
                 self.current_id = self.messages.iter().max_by_key(|m| m.id).unwrap().id;
-                if self.truncate_stream(self.current_position).await.is_err() {
+                if self.truncate(self.current_position).await.is_err() {
                     error!("Failed to truncate stream file: {}", self.log_path);
                     return;
                 }
@@ -166,56 +166,9 @@ impl Stream {
         );
     }
 
-    pub async fn truncate_stream(&mut self, high_watermark: u64) -> Result<(), SystemError> {
+    pub async fn truncate(&mut self, high_watermark: u64) -> Result<(), SystemError> {
         let file_size = std::fs::metadata(&self.log_path)?.len();
-        let mut position = 0u64;
-
-        {
-            let file = file::open(&self.log_path)
-                .await
-                .unwrap_or_else(|_| panic!("Failed to read stream file: {}", self.log_path));
-
-            loop {
-                let buffer = vec![0u8; 8];
-                let (result, buffer) = file.read_exact_at(buffer, position).await;
-                if result.is_err() {
-                    break;
-                }
-
-                let offset = u64::from_le_bytes(buffer.try_into().unwrap());
-                position += 8;
-                if offset == high_watermark {
-                    break;
-                }
-
-                let buffer = vec![0u8; 8];
-                let (result, buffer) = file.read_exact_at(buffer, position).await;
-                if result.is_err() {
-                    break;
-                }
-                let _id = u64::from_le_bytes(buffer.try_into().unwrap());
-                position += 8;
-
-                let buffer = vec![0u8; 4];
-                let payload_length = file.read_exact_at(buffer, position).await;
-                if payload_length.0.is_err() {
-                    error!("Failed to read payload length");
-                    break;
-                }
-
-                let payload_length = u32::from_le_bytes(payload_length.1.try_into().unwrap());
-                position += 4;
-                let buffer = vec![0; payload_length as usize];
-                let payload = file.read_exact_at(buffer, position).await;
-                if payload.0.is_err() {
-                    error!("Failed to read payload");
-                    break;
-                }
-
-                position += payload_length as u64;
-            }
-        }
-
+        let position = self.load_messages(Some(high_watermark), &mut |_| {}).await;
         if file_size <= position {
             return Ok(());
         }
@@ -334,6 +287,16 @@ impl Stream {
 
     pub async fn load_messages_from_disk(&self, end_offset: Option<u64>) -> (Vec<Message>, u64) {
         let mut messages = Vec::new();
+        let position = self
+            .load_messages(end_offset, &mut |message| messages.push(message))
+            .await;
+        (messages, position)
+    }
+
+    pub async fn load_messages<F>(&self, end_offset: Option<u64>, on_message: &mut F) -> u64
+    where
+        F: FnMut(Message),
+    {
         let file = file::open(&self.log_path)
             .await
             .unwrap_or_else(|_| panic!("Failed to read stream file: {}", self.log_path));
@@ -375,7 +338,7 @@ impl Stream {
 
             position += payload_length as u64;
             let message = Message::new(offset, id, Bytes::from(payload.1));
-            messages.push(message);
+            on_message(message);
 
             if let Some(end_offset) = end_offset {
                 if offset >= end_offset {
@@ -384,7 +347,7 @@ impl Stream {
             }
         }
 
-        (messages, position)
+        position
     }
 
     pub async fn set_high_watermark(&mut self, high_watermark: Index) {
