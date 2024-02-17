@@ -178,7 +178,7 @@ impl Stream {
             self.stream_id, self.log_path
         );
         let file = std::fs::File::open(&self.log_path)?;
-        file.set_len(high_watermark)?;
+        file.set_len(position)?;
         Ok(())
     }
 

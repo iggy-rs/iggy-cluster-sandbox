@@ -46,10 +46,21 @@ impl State {
         }
     }
 
-    pub async fn truncate(&self, _index: Index) -> Result<(), SystemError> {
+    pub async fn truncate(&mut self, to_index: Index) -> Result<(), SystemError> {
+        self.load_and_set_state(Some(to_index))
+            .await
+            .unwrap_or_else(|_| panic!("Failed to load state from disk: {}", self.log_path));
+
         let file = std::fs::File::open(&self.log_path)?;
-        let _file_size = file.metadata()?.len();
-        // TODO: Implement truncate
+        let file_size = file.metadata()?.len();
+        if file_size > self.current_position {
+            info!(
+                "Truncating state file from: {file_size} bytes to {} bytes...",
+                self.current_position
+            );
+            file.set_len(self.current_position)?;
+        }
+
         Ok(())
     }
 
@@ -68,9 +79,42 @@ impl State {
         }
 
         info!("Initializing state...");
+        self.load_and_set_state(None)
+            .await
+            .unwrap_or_else(|_| panic!("Failed to load state from disk: {}", self.log_path));
 
+        info!(
+            "Initialized state for {} entries. {}",
+            self.entries.len(),
+            self
+        );
+    }
+
+    async fn load_and_set_state(&mut self, to_index: Option<Index>) -> Result<(), SystemError> {
+        let mut entries = vec![];
+        let (position, term, index) = self
+            .load_state_from_disk(to_index, &mut |entry| entries.push(entry))
+            .await;
+        self.entries = entries;
+        self.commit_index = index;
+        self.term = term;
+        self.current_position = position;
+        self.last_applied = self.commit_index;
+        Ok(())
+    }
+
+    async fn load_state_from_disk<F>(
+        &self,
+        to_index: Option<u64>,
+        on_entry: &mut F,
+    ) -> (u64, Term, Index)
+    where
+        F: FnMut(LogEntry),
+    {
         let file = file::open(&self.log_path).await.unwrap();
         let mut position = 0u64;
+        let mut term = 0;
+        let mut index = 0;
         loop {
             let buffer = vec![0u8; 8];
             let (result, buffer) = file.read_exact_at(buffer, position).await;
@@ -79,7 +123,7 @@ impl State {
                 break;
             }
 
-            let index = u64::from_le_bytes(buffer.try_into().unwrap());
+            index = u64::from_le_bytes(buffer.try_into().unwrap());
             position += 8;
 
             let buffer = vec![0u8; 8];
@@ -89,7 +133,7 @@ impl State {
                 break;
             }
 
-            let term = u64::from_le_bytes(buffer.try_into().unwrap());
+            term = u64::from_le_bytes(buffer.try_into().unwrap());
             position += 8;
 
             let buffer = vec![0u8; 4];
@@ -112,19 +156,16 @@ impl State {
             let data = Bytes::from(data);
             position += size as u64;
             let entry = LogEntry { index, size, data };
-            self.commit_index = index;
-            self.term = term;
-            self.entries.push(entry);
+            on_entry(entry);
+
+            if let Some(to_index) = to_index {
+                if index >= to_index {
+                    break;
+                }
+            }
         }
 
-        self.current_position = position;
-        self.last_applied = self.commit_index;
-
-        info!(
-            "Initialized state for {} entries. {}",
-            self.entries.len(),
-            self
-        );
+        (position, term, index)
     }
 
     pub fn set_term(&mut self, term: Term) {

@@ -140,7 +140,7 @@ impl Cluster {
                         "This node is ahead of cluster node with ID: {node_id} and will be truncated."
                     );
                     completed = false;
-                    let state = self.state.lock().await;
+                    let mut state = self.state.lock().await;
                     state.truncate(start_index).await?;
                 }
                 Ordering::Equal => {
