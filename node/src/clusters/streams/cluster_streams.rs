@@ -1,11 +1,12 @@
 use crate::clusters::cluster::Cluster;
+use crate::clusters::nodes::node::Node;
 use crate::connection::handler::ConnectionHandler;
 use crate::types::{NodeId, Term};
 use sdk::commands::create_stream::CreateStream;
 use sdk::commands::delete_stream::DeleteStream;
 use sdk::error::SystemError;
-use std::cmp::Ordering;
-use tracing::{error, info, warn};
+use sdk::models::stream::Stream;
+use tracing::{error, info};
 
 impl Cluster {
     pub async fn create_stream(
@@ -100,7 +101,6 @@ impl Cluster {
         let mut completed = true;
         let self_state = self.get_node_state().await?;
         let last_applied = self_state.last_applied;
-        let start_index = last_applied + 1;
         for node in self.nodes.values() {
             if node.node.is_self_node() {
                 continue;
@@ -108,6 +108,15 @@ impl Cluster {
 
             let node_id = node.node.id;
             if !available_leaders.contains(&node_id) {
+                continue;
+            }
+
+            if let Err(error) = self.sync_state_from_leader(last_applied, &node.node).await {
+                error!(
+                    "Failed to sync state from cluster node with ID: {}, {error}",
+                    node.node.id
+                );
+                completed = false;
                 continue;
             }
 
@@ -122,49 +131,6 @@ impl Cluster {
                 continue;
             }
 
-            let node_state = node.node.get_node_state().await;
-            if node_state.is_err() {
-                let error = node_state.unwrap_err();
-                error!(
-                    "Failed to get node state from cluster node with ID: {}, {error}",
-                    node.node.id
-                );
-                completed = false;
-                continue;
-            }
-
-            let node_state = node_state.unwrap();
-            match last_applied.cmp(&node_state.last_applied) {
-                Ordering::Less => {
-                    warn!(
-                        "This node is ahead of cluster node with ID: {node_id} and will be truncated."
-                    );
-                    completed = false;
-                    let mut state = self.state.lock().await;
-                    state.truncate(start_index).await?;
-                }
-                Ordering::Equal => {
-                    info!("This node and cluster node with ID: {node_id} are in sync.");
-                }
-                Ordering::Greater => {
-                    let loaded_state = node.node.load_state(start_index).await;
-                    if loaded_state.is_err() {
-                        let error = loaded_state.unwrap_err();
-                        error!(
-                            "Failed to load state from cluster node with ID: {}, {error}",
-                            node.node.id
-                        );
-                        completed = false;
-                        continue;
-                    }
-
-                    let loaded_state = loaded_state.unwrap();
-                    for entry in loaded_state.entries {
-                        self.append_entry(&entry).await?;
-                    }
-                }
-            }
-
             let streams = streams.unwrap();
             if streams.is_empty() {
                 completed = true;
@@ -172,47 +138,12 @@ impl Cluster {
             }
 
             for stream in streams {
-                info!("Syncing stream: {stream} from cluster node with ID: {node_id}");
-                let mut streamer = self.streamer.lock().await;
-                streamer.create_stream(stream.id, 3).await?;
-                let self_stream = streamer.get_stream_mut(stream.id).unwrap();
-                if self_stream.high_watermark == stream.high_watermark {
-                    info!(
-                        "Stream: {stream} is already in sync with cluster node with ID: {node_id}"
-                    );
-                    completed = true;
-                    continue;
-                }
-
-                if self_stream.high_watermark > stream.high_watermark {
-                    info!(
-                        "Stream: {stream} is ahead of cluster node with ID: {node_id} and will be truncated."
-                    );
-                    self_stream.truncate(stream.high_watermark).await?;
-                }
-
-                let offset = self_stream.high_watermark + 1;
-                let count = stream.high_watermark - self_stream.high_watermark;
-                info!(
-                    "Polling messages for stream: {stream} from cluster node with ID: {node_id}, offset: {offset}, count: {count}..."
-                );
-                let messages = node.node.poll_messages(stream.id, offset, count).await;
-                if messages.is_err() {
-                    let error = messages.unwrap_err();
+                if let Err(error) = self.sync_stream_from_leader(&stream, &node.node).await {
                     error!(
-                        "Failed to poll messages for stream: {stream} from cluster node with ID: {node_id}, {error}",
+                        "Failed to sync stream: {stream} from cluster node with ID: {node_id}, {error}",
                     );
                     completed = false;
-                    continue;
                 }
-                let messages = messages.unwrap();
-                info!(
-                    "Successfully polled {} messages for stream: {stream} from cluster node with ID: {node_id}", messages.len()
-                );
-                self_stream.commit_messages(messages).await?;
-                self_stream.set_offset(stream.high_watermark);
-                self_stream.set_high_watermark(stream.high_watermark).await;
-                completed = true;
             }
         }
 
@@ -223,6 +154,51 @@ impl Cluster {
         let self_node = self.get_self_node().unwrap();
         self_node.node.complete_initial_sync().await;
         info!("Successfully synced streams from other nodes.");
+        Ok(())
+    }
+
+    async fn sync_stream_from_leader(
+        &self,
+        stream: &Stream,
+        node: &Node,
+    ) -> Result<(), SystemError> {
+        let node_id = node.id;
+        info!("Syncing stream: {stream} from cluster node with ID: {node_id}");
+        let mut streamer = self.streamer.lock().await;
+        streamer.create_stream(stream.id, 3).await?;
+        let self_stream = streamer.get_stream_mut(stream.id).unwrap();
+        if self_stream.high_watermark == stream.high_watermark {
+            info!("Stream: {stream} is already in sync with cluster node with ID: {node_id}");
+            return Ok(());
+        }
+
+        if self_stream.high_watermark > stream.high_watermark {
+            info!(
+                        "Stream: {stream} is ahead of cluster node with ID: {node_id} and will be truncated."
+                    );
+            self_stream.truncate(stream.high_watermark).await?;
+        }
+
+        let offset = self_stream.high_watermark + 1;
+        let count = stream.high_watermark - self_stream.high_watermark;
+        info!(
+                    "Polling messages for stream: {stream} from cluster node with ID: {node_id}, offset: {offset}, count: {count}..."
+                );
+        let messages = node.poll_messages(stream.id, offset, count).await;
+        if messages.is_err() {
+            let error = messages.unwrap_err();
+            error!(
+                        "Failed to poll messages for stream: {stream} from cluster node with ID: {node_id}, {error}",
+                    );
+            return Err(error);
+        }
+        let messages = messages.unwrap();
+        info!(
+                    "Successfully polled {} messages for stream: {stream} from cluster node with ID: {node_id}", messages.len()
+                );
+        self_stream.commit_messages(messages).await?;
+        self_stream.set_offset(stream.high_watermark);
+        self_stream.set_high_watermark(stream.high_watermark).await;
         Ok(())
     }
 }
