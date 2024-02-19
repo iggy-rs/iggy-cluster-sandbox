@@ -1,3 +1,4 @@
+
 [stream]
 path = "local_data/node1/streams"
 
@@ -12,6 +13,7 @@ address = "0.0.0.0:8201"
 [cluster]
 max_timeout = 1000
 heartbeat_interval = 3000
+info_interval = 5000
 reconnection_interval = 1000
 reconnection_retries = 10
 secret = "secret123!"

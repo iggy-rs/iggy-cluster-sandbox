@@ -48,6 +48,7 @@ pub(crate) struct NodeConfig {
 pub(crate) struct ClusterConfig {
     pub max_timeout: u32,
     pub heartbeat_interval: u64,
+    pub info_interval: u64,
     pub reconnection_interval: u64,
     pub reconnection_retries: u32,
     pub secret: String,
@@ -109,6 +110,7 @@ impl Default for ClusterConfig {
         Self {
             max_timeout: 1000,
             heartbeat_interval: 3000,
+            info_interval: 5000,
             reconnection_interval: 1000,
             reconnection_retries: 10,
             secret: "secret123!".to_string(),

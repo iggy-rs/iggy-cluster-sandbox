@@ -34,6 +34,15 @@ pub enum ClusterState {
     Healthy,
 }
 
+impl Display for ClusterState {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ClusterState::Uninitialized => write!(f, "uninitialized"),
+            ClusterState::Healthy => write!(f, "healthy"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Cluster {
     pub nodes: HashMap<u64, Rc<ClusterNode>>,
@@ -42,6 +51,7 @@ pub struct Cluster {
     pub state: Mutex<State>,
     pub election_manager: ElectionManager,
     pub heartbeat_interval: Duration,
+    pub info_interval: Duration,
     pub required_acknowledgements: RequiredAcknowledgements,
 }
 
@@ -121,6 +131,7 @@ impl Cluster {
 
         Ok(Self {
             heartbeat_interval: Duration::from_millis(config.heartbeat_interval),
+            info_interval: Duration::from_millis(config.info_interval),
             election_manager: ElectionManager::new(
                 self_node_id,
                 nodes.len() as u64,
@@ -176,6 +187,11 @@ impl Cluster {
         );
         self.sync_state_and_streams_from_other_nodes(&available_leaders)
             .await?;
+        self.get_self_node()
+            .unwrap()
+            .node
+            .set_can_be_leader(true)
+            .await;
         self.wait_for_all_nodes_to_complete_initial_sync().await?;
         Ok(())
     }
