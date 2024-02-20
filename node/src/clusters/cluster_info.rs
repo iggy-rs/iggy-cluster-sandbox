@@ -16,9 +16,9 @@ async fn listen(cluster: Rc<Cluster>) {
     loop {
         sleep(interval).await;
         let mut info = String::new();
-        let cluster_state = cluster.get_state().await;
+        let health = cluster.get_health().await;
         info.push_str(&format!("\n\n{SEPARATOR}\n"));
-        info.push_str(&format!("+++ Cluster is {cluster_state}\n"));
+        info.push_str(&format!("+++ Cluster is {health}\n"));
         let state = cluster.state.lock().await;
         info.push_str(&format!("+++ Nodes: {}\n", cluster.nodes.len()));
         info.push_str(&format!("+++ Term: {}\n", state.term));

@@ -168,14 +168,15 @@ impl Cluster {
         streamer.create_stream(stream.id, 3).await?;
         let self_stream = streamer.get_stream_mut(stream.id).unwrap();
         if self_stream.high_watermark == stream.high_watermark {
-            info!("Stream: {stream} is already in sync with cluster node with ID: {node_id}");
+            info!("Stream: {stream} is already in sync with cluster node with ID: {node_id}, high watermark: {}", stream.high_watermark);
             return Ok(());
         }
 
         if self_stream.high_watermark > stream.high_watermark {
             info!(
-                        "Stream: {stream} is ahead of cluster node with ID: {node_id} and will be truncated."
-                    );
+                        "Stream: {stream} is ahead of cluster node with ID: {node_id} and will be truncated. Current high watermark: {} is greater than cluster node high watermark: {}",
+                        self_stream.high_watermark, stream.high_watermark
+                     );
             self_stream.truncate(stream.high_watermark).await?;
         }
 

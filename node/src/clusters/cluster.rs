@@ -29,16 +29,16 @@ pub struct SelfNode {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
-pub enum ClusterState {
-    Uninitialized,
+pub enum ClusterHealth {
+    Unhealthy,
     Healthy,
 }
 
-impl Display for ClusterState {
+impl Display for ClusterHealth {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            ClusterState::Uninitialized => write!(f, "uninitialized"),
-            ClusterState::Healthy => write!(f, "healthy"),
+            ClusterHealth::Unhealthy => write!(f, "unhealthy"),
+            ClusterHealth::Healthy => write!(f, "healthy"),
         }
     }
 }
@@ -382,7 +382,7 @@ impl Cluster {
     }
 
     pub async fn verify_is_healthy(&self) -> Result<(), SystemError> {
-        if self.get_state().await != ClusterState::Healthy {
+        if self.get_health().await != ClusterHealth::Healthy {
             return Err(SystemError::UnhealthyCluster);
         }
 
@@ -478,7 +478,7 @@ impl Cluster {
         metadata
     }
 
-    pub async fn get_state(&self) -> ClusterState {
+    pub async fn get_health(&self) -> ClusterHealth {
         let mut available_nodes = 1;
         let required_nodes = (self.nodes.len() / 2) + 1;
         for node in self.nodes.values() {
@@ -492,10 +492,10 @@ impl Cluster {
         }
 
         if available_nodes < required_nodes {
-            return ClusterState::Uninitialized;
+            return ClusterHealth::Unhealthy;
         }
 
-        ClusterState::Healthy
+        ClusterHealth::Healthy
     }
 
     pub async fn get_node_state(&self) -> Result<NodeState, SystemError> {
