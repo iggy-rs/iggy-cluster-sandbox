@@ -100,7 +100,7 @@ impl Cluster {
         nodes.insert(
             self_node.id,
             Rc::new(ClusterNode {
-                state: Mutex::new(ClusterNodeState::Leader),
+                state: Mutex::new(ClusterNodeState::Candidate),
                 node: Self::create_node(
                     self_node.id,
                     &config.secret,
@@ -177,6 +177,10 @@ impl Cluster {
         self.election_manager.set_term(term).await;
         self.connect_to_all_nodes().await?;
         let available_leaders = self.sync_nodes_state().await?;
+        if available_leaders.is_empty() {
+            error!("No available leaders found.");
+            return Err(SystemError::UnhealthyCluster);
+        }
         info!(
             "Available leaders: {}",
             available_leaders
