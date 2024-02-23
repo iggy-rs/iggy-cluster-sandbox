@@ -4,6 +4,7 @@ use crate::configs::config::RequiredAcknowledgements;
 use crate::connection::handler::ConnectionHandler;
 use crate::types::{Index, Term};
 use bytes::Bytes;
+use sdk::commands::command;
 use sdk::commands::command::Command;
 use sdk::error::SystemError;
 use sdk::models::log_entry::LogEntry;
@@ -135,6 +136,29 @@ impl Cluster {
                 let loaded_state = loaded_state.unwrap();
                 for entry in loaded_state.entries {
                     self.append_entry(&entry).await?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn replay_state(&self, term: Term, entries: &[LogEntry]) -> Result<(), SystemError> {
+        info!(
+            "Replaying state for term: {term} and {} entries.",
+            entries.len()
+        );
+        for entry in entries {
+            match command::map_from_bytes(&entry.data)? {
+                Command::CreateStream(create_stream) => {
+                    self.create_stream(term, create_stream.id, create_stream.replication_factor)
+                        .await?;
+                }
+                Command::DeleteStream(delete_stream) => {
+                    self.delete_stream(term, delete_stream.id).await?;
+                }
+                other => {
+                    warn!("Received an unknown log entry command: {other}",);
+                    return Err(SystemError::InvalidCommand);
                 }
             }
         }
