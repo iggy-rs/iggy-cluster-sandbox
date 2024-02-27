@@ -13,7 +13,6 @@ pub struct State {
     pub term: Term,
     pub commit_index: Index,
     pub last_applied: Index,
-    pub entries: Vec<LogEntry>,
     current_position: u64,
     directory_path: String,
     log_path: String,
@@ -21,14 +20,10 @@ pub struct State {
 
 impl Display for State {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut entries = String::new();
-        for entry in &self.entries {
-            entries.push_str(&format!("{}\n", entry));
-        }
         write!(
             f,
-            "term: {}, commit_index: {}, last_applied: {}, entries: {}",
-            self.term, self.commit_index, self.last_applied, entries
+            "term: {}, commit_index: {}, last_applied: {}",
+            self.term, self.commit_index, self.last_applied
         )
     }
 }
@@ -40,7 +35,6 @@ impl State {
             commit_index: 0,
             last_applied: 0,
             current_position: 0,
-            entries: vec![],
             directory_path: path.to_string(),
             log_path: format!("{}/state.log", path),
         }
@@ -83,11 +77,15 @@ impl State {
             .await
             .unwrap_or_else(|_| panic!("Failed to load state from disk: {}", self.log_path));
 
-        info!(
-            "Initialized state for {} entries. {}",
-            self.entries.len(),
-            self
-        );
+        info!("Initialized state");
+    }
+
+    pub async fn load_entries(&self, to_index: Option<Index>) -> Vec<LogEntry> {
+        info!("Loading entries from disk, to index: {:?}", to_index);
+        let mut entries = vec![];
+        self.load_state_from_disk(to_index, &mut |entry| entries.push(entry))
+            .await;
+        entries
     }
 
     async fn load_and_set_state(&mut self, to_index: Option<Index>) -> Result<(), SystemError> {
@@ -95,7 +93,6 @@ impl State {
         let (position, term, index) = self
             .load_state_from_disk(to_index, &mut |entry| entries.push(entry))
             .await;
-        self.entries = entries;
         self.commit_index = index;
         self.term = term;
         self.current_position = position;
@@ -173,7 +170,7 @@ impl State {
     }
 
     pub async fn append(&mut self, payload: Bytes) -> Result<LogEntry, SystemError> {
-        if self.commit_index > 0 || !self.entries.is_empty() {
+        if self.commit_index > 0 {
             self.commit_index += 1;
         }
         let entry = LogEntry {
@@ -210,7 +207,6 @@ impl State {
             "Appended entry at position: {}, size: {size}",
             self.current_position
         );
-        self.entries.push(entry);
         self.current_position += size as u64;
         Ok(())
     }

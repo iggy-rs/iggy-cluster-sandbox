@@ -535,7 +535,8 @@ impl Cluster {
             term: state.term,
             last_applied: state.last_applied,
             entries: state
-                .entries
+                .load_entries(None)
+                .await
                 .iter()
                 .filter(|entry| entry.index >= start_index)
                 .map(|entry| LogEntry {
