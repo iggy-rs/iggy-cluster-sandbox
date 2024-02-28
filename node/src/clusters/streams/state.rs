@@ -150,8 +150,12 @@ impl Cluster {
         for entry in entries {
             match command::map_from_bytes(&entry.data)? {
                 Command::CreateStream(create_stream) => {
-                    self.create_stream(term, create_stream.id, create_stream.replication_factor)
-                        .await?;
+                    self.create_stream(
+                        term,
+                        create_stream.id,
+                        create_stream.replication_factor.unwrap_or(3),
+                    )
+                    .await?;
                 }
                 Command::DeleteStream(delete_stream) => {
                     self.delete_stream(term, delete_stream.id).await?;

@@ -13,7 +13,7 @@ impl Cluster {
         &self,
         term: Term,
         stream_id: u64,
-        replication_factor: Option<u8>,
+        replication_factor: u8,
     ) -> Result<(), SystemError> {
         let current_term = self.election_manager.get_current_term().await;
         if current_term != term {
@@ -24,7 +24,6 @@ impl Cluster {
         }
 
         let nodes_count = self.nodes.len() as u8;
-        let replication_factor = replication_factor.unwrap_or(3);
         if replication_factor > nodes_count {
             error!(
                 "Failed to create stream, replication factor: {replication_factor} is greater than number of nodes: {nodes_count}.",
