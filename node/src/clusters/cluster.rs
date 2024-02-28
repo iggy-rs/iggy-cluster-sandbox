@@ -173,6 +173,8 @@ impl Cluster {
     }
 
     pub async fn init(&self) -> Result<(), SystemError> {
+        let entries = self.state.lock().await.load_entries(None).await;
+        self.replay_state(None, &entries).await?;
         let term = self.state.lock().await.term;
         self.election_manager.set_term(term).await;
         self.connect_to_all_nodes().await?;

@@ -11,16 +11,18 @@ use tracing::{error, info};
 impl Cluster {
     pub async fn create_stream(
         &self,
-        term: Term,
+        term: Option<Term>,
         stream_id: u64,
         replication_factor: u8,
     ) -> Result<(), SystemError> {
-        let current_term = self.election_manager.get_current_term().await;
-        if current_term != term {
-            error!(
-                "Failed to create stream, term: {term} is not equal to current term: {current_term}.",
-            );
-            return Err(SystemError::InvalidTerm(term));
+        if let Some(term) = term {
+            let current_term = self.election_manager.get_current_term().await;
+            if current_term != term {
+                error!(
+                    "Failed to create stream, term: {term} is not equal to current term: {current_term}.",
+                );
+                return Err(SystemError::InvalidTerm(term));
+            }
         }
 
         let nodes_count = self.nodes.len() as u8;
@@ -38,13 +40,19 @@ impl Cluster {
             .await
     }
 
-    pub async fn delete_stream(&self, term: Term, stream_id: u64) -> Result<(), SystemError> {
-        let current_term = self.election_manager.get_current_term().await;
-        if current_term != term {
-            error!(
-                "Failed to delete stream, term: {term} is not equal to current term: {current_term}.",
-            );
-            return Err(SystemError::InvalidTerm(term));
+    pub async fn delete_stream(
+        &self,
+        term: Option<Term>,
+        stream_id: u64,
+    ) -> Result<(), SystemError> {
+        if let Some(term) = term {
+            let current_term = self.election_manager.get_current_term().await;
+            if current_term != term {
+                error!(
+                    "Failed to delete stream, term: {term} is not equal to current term: {current_term}.",
+                );
+                return Err(SystemError::InvalidTerm(term));
+            }
         }
 
         self.streamer.lock().await.delete_stream(stream_id).await;

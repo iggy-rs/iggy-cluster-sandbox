@@ -12,6 +12,6 @@ pub(crate) async fn handle(
     cluster.verify_is_healthy().await?;
     cluster.verify_is_leader().await?;
     let term = cluster.election_manager.get_current_term().await;
-    cluster.delete_stream(term, command.id).await?;
+    cluster.delete_stream(Some(term), command.id).await?;
     cluster.sync_deleted_stream(handler, term, command.id).await
 }

@@ -142,10 +142,15 @@ impl Cluster {
         Ok(())
     }
 
-    pub async fn replay_state(&self, term: Term, entries: &[LogEntry]) -> Result<(), SystemError> {
+    pub async fn replay_state(
+        &self,
+        term: Option<Term>,
+        entries: &[LogEntry],
+    ) -> Result<(), SystemError> {
         info!(
-            "Replaying state for term: {term} and {} entries.",
-            entries.len()
+            "Replaying state for term: {} entries, term: {:?}.",
+            entries.len(),
+            term
         );
         for entry in entries {
             match command::map_from_bytes(&entry.data)? {

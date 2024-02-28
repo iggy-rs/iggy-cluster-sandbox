@@ -13,7 +13,11 @@ pub(crate) async fn handle(
     cluster.verify_is_leader().await?;
     let term = cluster.election_manager.get_current_term().await;
     cluster
-        .create_stream(term, command.id, command.replication_factor.unwrap_or(3))
+        .create_stream(
+            Some(term),
+            command.id,
+            command.replication_factor.unwrap_or(3),
+        )
         .await?;
     cluster
         .sync_created_stream(handler, term, command.id, command.replication_factor)
