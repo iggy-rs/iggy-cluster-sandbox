@@ -6,6 +6,8 @@ use rand::Rng;
 use sdk::error::SystemError;
 use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
+use std::fmt;
+use std::fmt::{Display, Formatter};
 use std::time::Duration;
 use tracing::{info, warn};
 
@@ -14,7 +16,7 @@ pub(crate) struct Election {
     pub is_completed: Mutex<bool>,
     pub term: Mutex<Term>,
     pub leader_id: Mutex<Option<NodeId>>,
-    pub votes_count: Mutex<HashMap<CandidateId, HashSet<NodeId>>>,
+    pub votes: Mutex<HashMap<CandidateId, HashSet<NodeId>>>,
     pub voted_for: Mutex<Option<CandidateId>>,
     pub last_heartbeat_at: Mutex<u64>,
 }
@@ -32,7 +34,7 @@ impl Default for Election {
             is_completed: Mutex::new(true),
             term: Mutex::new(0),
             leader_id: Mutex::new(None),
-            votes_count: Mutex::new(HashMap::new()),
+            votes: Mutex::new(HashMap::new()),
             voted_for: Mutex::new(None),
             last_heartbeat_at: Mutex::new(0),
         }
@@ -47,23 +49,34 @@ pub struct ElectionManager {
     election: Election,
     randomizer: Mutex<ThreadRng>,
     nodes_count: u64,
-    timeout_range: (u64, u64),
+    timeout_range: ElectionTimeout,
+}
+
+#[derive(Debug)]
+pub struct ElectionTimeout {
+    from: u64,
+    to: u64,
+}
+
+impl ElectionTimeout {
+    pub fn new(from: u64, to: u64) -> Self {
+        if from > to {
+            panic!("Invalid timeout range: {} ms > {} ms.", from, to);
+        }
+
+        Self { from, to }
+    }
+}
+
+impl Display for ElectionTimeout {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{} - {} ms.", self.from, self.to)
+    }
 }
 
 impl ElectionManager {
-    pub fn new(self_id: CandidateId, nodes_count: u64, timeout_range: (u64, u64)) -> Self {
-        if timeout_range.0 > timeout_range.1 {
-            panic!(
-                "Invalid timeout range: {} ms > {} ms.",
-                timeout_range.0, timeout_range.1
-            )
-        }
-
-        info!(
-            "Election timeout range: is {} - {} ms.",
-            timeout_range.0, timeout_range.1
-        );
-
+    pub fn new(self_id: CandidateId, nodes_count: u64, timeout_range: ElectionTimeout) -> Self {
+        info!("Election timeout range is: {timeout_range}");
         Self {
             self_id,
             current_term: Mutex::new(0),
@@ -142,7 +155,7 @@ impl ElectionManager {
         self.set_election_completed_state(false).await;
         *self.election.term.lock().await = term;
         self.election.voted_for.lock().await.take();
-        self.election.votes_count.lock().await.clear();
+        self.election.votes.lock().await.clear();
         let previous_term;
 
         {
@@ -154,7 +167,7 @@ impl ElectionManager {
             .randomizer
             .lock()
             .await
-            .gen_range(self.timeout_range.0..=self.timeout_range.1);
+            .gen_range(self.timeout_range.from..=self.timeout_range.to);
         info!("Starting election for new term {term}, previous term: {previous_term}, required votes: {} timeout: {timeout} ms...", self.get_quorum_count());
         // Wait for random timeout and check if there is no leader in the meantime
         sleep(Duration::from_millis(timeout)).await;
@@ -207,11 +220,11 @@ impl ElectionManager {
             *self.current_term.lock().await = term;
             *self.election.term.lock().await = term;
             self.election.voted_for.lock().await.take();
-            self.election.votes_count.lock().await.clear();
+            self.election.votes.lock().await.clear();
         }
 
         {
-            let mut votes_count = self.election.votes_count.lock().await;
+            let mut votes_count = self.election.votes.lock().await;
             let already_voted = votes_count.values().any(|votes| votes.contains(&node_id));
             if already_voted {
                 if self.self_id == node_id {
@@ -255,7 +268,7 @@ impl ElectionManager {
         }
 
         info!("Counting votes in term: {term}...");
-        let votes_count = self.election.votes_count.lock().await;
+        let votes_count = self.election.votes.lock().await;
         let leader_votes = votes_count.iter().max_by_key(|(_, votes)| votes.len());
         if leader_votes.is_none() {
             info!("No leader elected in term: {term}.");
@@ -289,7 +302,7 @@ impl ElectionManager {
             return false;
         }
 
-        let votes_count = self.election.votes_count.lock().await;
+        let votes_count = self.election.votes.lock().await;
         let candidate_votes = votes_count.get(&candidate_id);
         if candidate_votes.is_none() {
             return false;

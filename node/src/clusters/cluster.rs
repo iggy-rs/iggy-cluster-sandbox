@@ -1,4 +1,4 @@
-use crate::clusters::elections::election::ElectionManager;
+use crate::clusters::elections::election::{ElectionManager, ElectionTimeout};
 use crate::clusters::nodes::node::{Node, Resiliency};
 use crate::clusters::state::State;
 use crate::configs::config::{ClusterConfig, RequiredAcknowledgements};
@@ -135,7 +135,7 @@ impl Cluster {
             election_manager: ElectionManager::new(
                 self_node_id,
                 nodes.len() as u64,
-                (
+                ElectionTimeout::new(
                     config.election_timeout_range_from,
                     config.election_timeout_range_to,
                 ),
