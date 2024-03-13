@@ -100,7 +100,7 @@ impl Cluster {
         nodes.insert(
             self_node.id,
             Rc::new(ClusterNode {
-                state: Mutex::new(ClusterNodeState::Candidate),
+                state: Mutex::new(ClusterNodeState::Leader),
                 node: Self::create_node(
                     self_node.id,
                     &config.secret,
