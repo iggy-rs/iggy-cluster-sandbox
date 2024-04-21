@@ -774,9 +774,9 @@ dependencies = [
 
 [[package]]
 name = "monoio"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fd5be7ef0eea41e4e5b30fe55aa6fd15288c415118bcdceadd52fd3656816cc7"
+checksum = "60824f1a372fa200937885a2d434610333fe47d6c6f3d0855bd4555b46316fe7"
 dependencies = [
  "auto-const-array",
  "bytes",
