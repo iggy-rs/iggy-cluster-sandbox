@@ -19,13 +19,17 @@ mod server;
 mod streaming;
 mod types;
 
+const IGGY_NODE_CONFIG_PATH: &str = "IGGY_NODE_CONFIG_PATH";
+
 #[monoio::main(timer_enabled = true)]
 async fn main() -> Result<(), SystemError> {
     tracing_subscriber::fmt::init();
     let standard_font = FIGfont::standard().unwrap();
     let figure = standard_font.convert("Iggy Node");
     println!("{}", figure.unwrap());
-    let config_provider = FileConfigProvider::default();
+    let config_path =
+        std::env::var(IGGY_NODE_CONFIG_PATH).expect("IGGY_NODE_CONFIG_PATH is not set.");
+    let config_provider = FileConfigProvider::new(config_path);
     let system_config = config_provider.load_config().await?;
     println!("{system_config}");
     let mut state = State::new(0, &system_config.cluster.state_path);

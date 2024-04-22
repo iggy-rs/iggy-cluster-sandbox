@@ -9,8 +9,6 @@ use std::{env, path::Path};
 use toml::{map::Map, Value as TomlValue};
 use tracing::info;
 
-const DEFAULT_CONFIG_PATH: &str = "configs/node1.toml";
-
 #[derive(Debug)]
 pub(crate) struct FileConfigProvider {
     path: String,
@@ -23,14 +21,6 @@ pub(crate) struct CustomEnvProvider {
 impl FileConfigProvider {
     pub fn new(path: String) -> Self {
         Self { path }
-    }
-}
-
-impl Default for FileConfigProvider {
-    fn default() -> Self {
-        let path =
-            env::var("IGGY_NODE_CONFIG_PATH").unwrap_or_else(|_| DEFAULT_CONFIG_PATH.to_string());
-        Self::new(path)
     }
 }
 
