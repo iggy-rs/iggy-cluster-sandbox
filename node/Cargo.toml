@@ -5,26 +5,26 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.8"
-bytes = "1.5.0"
-chrono = "0.4.3"
-clap = { version = "4.5.2", features = ["derive"] }
+bytes = "1.6.0"
+chrono = "0.4.*"
+clap = { version = "4.5.*", features = ["derive"] }
 figlet-rs = "0.1.5"
-figment = { version = "0.10.8", features = ["toml", "env"] }
-flume = "0.11.0"
-futures = "0.3.28"
-serde = { version = "1.0.197", features = ["derive", "rc"] }
-sled = "0.34.7"
-thiserror = "1.0.5"
-toml = "0.8"
-tracing = { version = "0.1.4" }
-tracing-subscriber = { version = "0.3.18", features = ["fmt"] }
-tracing-appender = "0.2.2"
-monoio = { version = "0.2.3", features = ["async-cancel", "sync", "signal", "tracing", "zero-copy", "bytes", "iouring", "legacy", "macros", "utils"] }
+figment = { version = "0.10.*", features = ["toml", "env"] }
+flume = "0.11.*"
+futures = "0.3.*"
+serde = { version = "1.0.*", features = ["derive", "rc"] }
+sled = "0.34.*"
+thiserror = "1.0.*"
+toml = "0.8.*"
+tracing = { version = "0.1.*" }
+tracing-subscriber = { version = "0.3.*", features = ["fmt"] }
+tracing-appender = "0.2.*"
+monoio = { version = "0.2.*", features = ["async-cancel", "sync", "signal", "tracing", "zero-copy", "bytes", "iouring", "legacy", "macros", "utils"] }
 sdk = { path = "../sdk" }
-rand = "0.8.5"
-config = { version = "0.14.0", features = [] }
-ulid = "1.1.0"
-log = { version = "0.4.21", features = [] }
+rand = "0.8.*"
+config = { version = "0.14.*", features = [] }
+ulid = "1.1.*"
+log = { version = "0.4.*", features = [] }
 
 [[bin]]
 name = "iggy-node"
