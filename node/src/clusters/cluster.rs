@@ -173,6 +173,7 @@ impl Cluster {
     }
 
     pub async fn init(&self) -> Result<(), SystemError> {
+        info!("Initializing cluster...");
         let entries = self.state.lock().await.load_entries(None).await;
         self.replay_state(None, &entries).await?;
         let term = self.state.lock().await.term;

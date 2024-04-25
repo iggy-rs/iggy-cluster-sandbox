@@ -59,6 +59,7 @@ impl State {
     }
 
     pub async fn init(&mut self) {
+        info!("Initializing state...");
         if !Path::new(&self.directory_path).exists() {
             create_dir_all(&self.directory_path).unwrap_or_else(|_| {
                 panic!("Failed to create state directory: {}", self.directory_path)

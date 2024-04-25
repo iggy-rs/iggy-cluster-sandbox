@@ -18,11 +18,13 @@ async fn listen(cluster: Rc<Cluster>) {
         sleep(interval).await;
         let last_heartbeat = cluster.election_manager.get_last_heartbeat().await;
         if last_heartbeat == 0 {
+            info!("No heartbeat received yet.");
             continue;
         }
 
         let leader_id = cluster.election_manager.get_leader_id().await;
         if leader_id.is_none() {
+            info!("No leader ID found.");
             continue;
         }
 

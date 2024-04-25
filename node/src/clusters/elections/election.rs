@@ -295,6 +295,7 @@ impl ElectionManager {
     pub async fn remove_leader(&self) {
         self.election.leader_id.lock().await.take();
         self.current_leader_id.lock().await.take();
+        info!("Leader has been removed.");
     }
 
     pub async fn has_majority_votes(&self, term: Term, candidate_id: CandidateId) -> bool {

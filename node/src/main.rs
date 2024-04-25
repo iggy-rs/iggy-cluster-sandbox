@@ -29,6 +29,7 @@ async fn main() -> Result<(), SystemError> {
     println!("{}", figure.unwrap());
     let config_path =
         std::env::var(IGGY_NODE_CONFIG_PATH).expect("IGGY_NODE_CONFIG_PATH is not set.");
+    info!("Starting Iggy node...");
     let config_provider = FileConfigProvider::new(config_path);
     let system_config = config_provider.load_config().await?;
     println!("{system_config}");
